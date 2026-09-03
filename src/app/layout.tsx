@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { Providers } from "@/components/_common/providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SIMSEKOLAH - Sistem Manajemen Sekolah",
-  description: "Sistem manajemen sekolah terintegrasi: data sekolah, guru, siswa, dan struktur organisasi.",
+  title: "SIMSEKOLAH - Sistem Manajemen Sekolah SD-SMP",
+  description: "Sistem informasi terpadu untuk administrasi, akademik, dan keuangan sekolah jenjang SD-SMP.",
 };
 
 export default function RootLayout({
@@ -28,8 +29,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        {children}
-        <Toaster />
+        <Providers>
+          {children}
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );

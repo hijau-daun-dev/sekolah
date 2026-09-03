@@ -1,4 +1,6 @@
-// Prisma schema for School Management System (Sistem Manajemen Sekolah)
+// Prisma schema - Aplikasi Manajemen Sekolah (SD-SMP)
+// Sesuai PRD v1.0 - SQLite (dev) siap migrasi PostgreSQL
+// Konvensi: Int @id @default(autoincrement()), semua tabel punya sekolah_id
 
 generator client {
   provider = "prisma-client-js"
@@ -9,90 +11,527 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model School {
-  id            String   @id @default(cuid())
-  name          String
-  address       String?
+// ============ MASTER DATA SISTEM ============
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // SUPER_ADMIN, TU, KEUANGAN, GURU, SISWA, ORTU
+  label       String
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+}
+
+model Sekolah {
+  id            Int      @id @default(autoincrement())
+  nama          String
+  npsn          String?
+  alamat        String?
   logoUrl       String?
-  principalName String?
-  principalNip  String?
-  phone         String?
+  telepon       String?
   email         String?
   website       String?
+  kepalaSekolah String?
+  nipKepala     String?
   description   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  users         User[]
+  siswas        Siswa[]
+  pegawais      Pegawai[]
+  ortus         Ortu[]
+  tahunAjarans  TahunAjaran[]
+  semesters     Semester[]
+  tingkats      Tingkat[]
+  jurusans      Jurusan[]
+  kelases       Kelas[]
+  kategoriMapels KategoriMapel[]
+  mapels        Mapel[]
+  komponenNilais KomponenNilai[]
+  ruangans      Ruangan[]
+  kategoriBarangs KategoriBarang[]
+  barangs       Barang[]
+  jenisPembayarans JenisPembayaran[]
+  tarifPembayarans TarifPembayaran[]
+  posAnggarans  PosAnggaran[]
+  pengumumans   Pengumuman[]
+  galeriBeritas GaleriBerita[]
 }
 
-model Teacher {
-  id          String    @id @default(cuid())
-  nip         String?
-  name        String
-  gender      String?
-  birthPlace  String?
-  birthDate   String?
-  phone       String?
-  email       String?
-  address     String?
-  subject     String?
-  position    String?
-  photoUrl    String?
-  orgLevel    Int       @default(0)
-  orgOrder    Int       @default(0)
-  parentId    String?
-  parent      Teacher?  @relation("OrgHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Teacher[] @relation("OrgHierarchy")
-  homeroomFor ClassRoom[] @relation("ClassHomeroom")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-}
-
-model Student {
-  id           String   @id @default(cuid())
-  nis          String?
-  nisn         String?
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  password     String // bcrypt hash
   name         String
-  gender       String?
-  birthPlace   String?
-  birthDate    String?
-  phone        String?
-  email        String?
-  address      String?
-  className    String?
-  major        String?
-  classId      String?
-  classRoom    ClassRoom? @relation(fields: [classId], references: [id], onDelete: SetNull)
-  photoUrl     String?
-  guardianName String?
-  guardianPhone String?
-  guardianJob  String?
+  roleId       Int
+  role         Role     @relation(fields: [roleId], references: [id])
+  sekolahId    Int?
+  sekolah      Sekolah? @relation(fields: [sekolahId], references: [id])
+  pegawaiId    Int?
+  ortuId       Int?
+  siswaId      Int?
+  isActive     Boolean  @default(true)
+  lastLogin    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
 
-model ClassRoom {
-  id           String    @id @default(cuid())
-  name         String
-  grade        String?
-  major        String?
-  homeroomTeacherId String?
-  homeroomTeacher Teacher? @relation("ClassHomeroom", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
-  room         String?
-  capacity     Int?
-  academicYear String?
-  description  String?
-  students     Student[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+// ============ MASTER DATA PERSONALIA ============
+
+model Siswa {
+  id           Int      @id @default(autoincrement())
+  sekolahId    Int
+  sekolah      Sekolah  @relation(fields: [sekolahId], references: [id])
+  nis          String?
+  nisn         String?
+  nama         String
+  gender       String?
+  tempatLahir  String?
+  tanggalLahir DateTime?
+  alamat       String?
+  telepon      String?
+  fotoUrl      String?
+  status       String   @default("Aktif") // Aktif, Lulus, Pindah, Nonaktif
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  kelasSiswas  KelasSiswa[]
+  tagihans     TagihanSiswa[]
+  absensis     AbsensiSiswa[]
+  penilaians   Penilaian[]
+  ortuSiswas   OrtuSiswa[]
 }
 
-model Subject {
-  id          String   @id @default(cuid())
-  code        String?
-  name        String
-  category    String?
-  durationHours Int?
-  description String?
+model Pegawai {
+  id           Int      @id @default(autoincrement())
+  sekolahId    Int
+  sekolah      Sekolah  @relation(fields: [sekolahId], references: [id])
+  nip          String?
+  nama         String
+  gender       String?
+  tempatLahir  String?
+  tanggalLahir DateTime?
+  alamat       String?
+  telepon      String?
+  email        String?
+  jabatan      String? // Kepala Sekolah, Wakasek, Guru, Staf TU, etc.
+  bidangStudi  String?
+  fotoUrl      String?
+  status       String   @default("Aktif") // Aktif, Pensiun, Resign
+  orgLevel     Int      @default(0)
+  orgOrder     Int      @default(0)
+  parentId     Int?
+  parent       Pegawai? @relation("PegawaiOrg", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Pegawai[] @relation("PegawaiOrg")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  walikelas    Kelas[]
+  jadwals      JadwalPelajaran[]
+  absensiPegawai AbsensiPegawai[]
+  guruMapels   GuruMapel[]
+  peminjamanBarang PeminjamanBarang[]
+  pembayarans  Pembayaran[]
+  pengeluarans Pengeluaran[]
+  pengumumans  Pengumuman[]
+}
+
+model Ortu {
+  id           Int      @id @default(autoincrement())
+  sekolahId    Int
+  sekolah      Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama         String
+  nik          String?
+  telepon      String?
+  email        String?
+  alamat       String?
+  pekerjaan    String?
+  fotoUrl      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  anakAnak     OrtuSiswa[]
+}
+
+model OrtuSiswa {
+  id        Int   @id @default(autoincrement())
+  ortuId    Int
+  ortu      Ortu  @relation(fields: [ortuId], references: [id], onDelete: Cascade)
+  siswaId   Int
+  siswa     Siswa @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  hubungan  String // Ayah, Ibu, Wali
+
+  @@unique([ortuId, siswaId])
+}
+
+// ============ MASTER DATA AKADEMIK ============
+
+model TahunAjaran {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama        String   // "2025/2026"
+  tanggalMulai DateTime?
+  tanggalSelesai DateTime?
+  statusAktif Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  semesters   Semester[]
+  kelases     Kelas[]
+  jadwals     JadwalPelajaran[]
+  tagihans    TagihanSiswa[]
+  tarifPembayarans TarifPembayaran[]
+}
+
+model Semester {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  tahunAjaranId Int
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id], onDelete: Cascade)
+  nama        String   // "Ganjil", "Genap"
+  statusAktif Boolean  @default(false)
+  tanggalMulai DateTime?
+  tanggalSelesai DateTime?
+}
+
+model Tingkat {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama        String   // "1", "2", ... "9" untuk SD-SMP
+  jenjang     String?  // "SD", "SMP"
+  urutan      Int      @default(0)
+  kelases     Kelas[]
+  tarifPembayarans TarifPembayaran[]
+}
+
+model Jurusan {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  kode        String
+  nama        String
+  keterangan  String?
+  kelases     Kelas[]
+}
+
+model Kelas {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama        String   // "6A", "6B"
+  tingkatId   Int
+  tingkat     Tingkat  @relation(fields: [tingkatId], references: [id])
+  jurusanId   Int?
+  jurusan     Jurusan? @relation(fields: [jurusanId], references: [id])
+  tahunAjaranId Int
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  walikelasId Int?
+  walikelas   Pegawai? @relation(fields: [walikelasId], references: [id], onDelete: SetNull)
+  ruangan     String?
+  kapasitas   Int?
+  createdAt   DateTime @default(now())
+
+  kelasSiswas KelasSiswa[]
+  jadwals     JadwalPelajaran[]
+  absensis    AbsensiSiswa[]
+}
+
+model KelasSiswa {
+  id          Int      @id @default(autoincrement())
+  kelasId     Int
+  kelas       Kelas    @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+  siswaId     Int
+  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  tahunAjaranId Int
+  createdAt   DateTime @default(now())
+
+  @@unique([kelasId, siswaId])
+}
+
+model KategoriMapel {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama        String
+  keterangan  String?
+  mapels      Mapel[]
+}
+
+model Mapel {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  kode        String?
+  nama        String
+  kategoriMapelId Int?
+  kategoriMapel KategoriMapel? @relation(fields: [kategoriMapelId], references: [id])
+  jpPerMinggu Int?
+  keterangan  String?
+  createdAt   DateTime @default(now())
+
+  guruMapels  GuruMapel[]
+  jadwals     JadwalPelajaran[]
+  penilaians  Penilaian[]
+}
+
+model KomponenNilai {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama        String   // UTS, UAS, Tugas, Harian
+  bobot       Float    @default(0) // 0-100
+  keterangan  String?
+  penilaians  Penilaian[]
+}
+
+model GuruMapel {
+  id          Int      @id @default(autoincrement())
+  pegawaiId   Int
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Cascade)
+  mapelId     Int
+  mapel       Mapel    @relation(fields: [mapelId], references: [id], onDelete: Cascade)
+  kelasId     Int?
+  createdAt   DateTime @default(now())
+
+  @@unique([pegawaiId, mapelId, kelasId])
+}
+
+// ============ MASTER DATA SARANA ============
+
+model Ruangan {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  kode        String?
+  nama        String   // "Lab Komputer", "Ruang Kelas 6A"
+  lokasi      String?
+  kapasitas   Int?
+  keterangan  String?
+  barangs     Barang[]
+}
+
+model KategoriBarang {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama        String
+  keterangan  String?
+  barangs     Barang[]
+}
+
+model Barang {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  kode        String?
+  nama        String
+  kategoriBarangId Int?
+  kategoriBarang KategoriBarang? @relation(fields: [kategoriBarangId], references: [id])
+  ruanganId   Int?
+  ruangan     Ruangan? @relation(fields: [ruanganId], references: [id])
+  jumlah      Int      @default(1)
+  kondisi     String   @default("Baik") // Baik, Rusak Ringan, Rusak Berat
+  status      String   @default("Tersedia") // Tersedia, Dipinjam
+  tanggalBeli DateTime?
+  hargaBeli   Int?
+  keterangan  String?
+  createdAt   DateTime @default(now())
+
+  peminjamanBarang PeminjamanBarang[]
+}
+
+// ============ MASTER DATA KEUANGAN ============
+
+model JenisPembayaran {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama        String   // SPP, Uang Pangkal, Uang Kegiatan
+  keterangan  String?
+  tarifPembayarans TarifPembayaran[]
+}
+
+model TarifPembayaran {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  jenisPembayaranId Int
+  jenisPembayaran JenisPembayaran @relation(fields: [jenisPembayaranId], references: [id])
+  tahunAjaranId Int
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  tingkatId   Int?
+  tingkat     Tingkat? @relation(fields: [tingkatId], references: [id])
+  nominal     Int
+  frekuensi   String   @default("Bulanan") // Bulanan, Sekali, Tahunan
+  keterangan  String?
+  createdAt   DateTime @default(now())
+
+  tagihans    TagihanSiswa[]
+}
+
+model PosAnggaran {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  kode        String?
+  nama        String   // Belanja ATK, Gaji, Listrik
+  jenis       String   @default("Pengeluaran") // Pengeluaran, Pemasukan
+  keterangan  String?
+  pengeluarans Pengeluaran[]
+}
+
+// ============ TRANSAKSI AKADEMIK ============
+
+model JadwalPelajaran {
+  id          Int      @id @default(autoincrement())
+  kelasId     Int
+  kelas       Kelas    @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+  mapelId     Int
+  mapel       Mapel    @relation(fields: [mapelId], references: [id])
+  pegawaiId   Int
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id])
+  tahunAjaranId Int
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  hari        String   // Senin, Selasa, ...
+  jamKe       Int
+  jamMulai    String?
+  jamSelesai  String?
+  createdAt   DateTime @default(now())
+}
+
+model AbsensiSiswa {
+  id          Int      @id @default(autoincrement())
+  siswaId     Int
+  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  kelasId     Int?
+  kelas       Kelas?   @relation(fields: [kelasId], references: [id])
+  tanggal     DateTime
+  status      String   // Hadir, Sakit, Izin, Alpa
+  keterangan  String?
+  createdAt   DateTime @default(now())
+
+  @@unique([siswaId, tanggal])
+}
+
+model Penilaian {
+  id          Int      @id @default(autoincrement())
+  siswaId     Int
+  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  mapelId     Int
+  mapel       Mapel    @relation(fields: [mapelId], references: [id])
+  komponenNilaiId Int
+  komponenNilai KomponenNilai @relation(fields: [komponenNilaiId], references: [id])
+  tahunAjaranId Int?
+  nilai       Float
+  tanggal     DateTime @default(now())
+  keterangan  String?
+
+  @@unique([siswaId, mapelId, komponenNilaiId])
+}
+
+model AbsensiPegawai {
+  id          Int      @id @default(autoincrement())
+  pegawaiId   Int
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Cascade)
+  tanggal     DateTime
+  jamMasuk    DateTime?
+  jamPulang   DateTime?
+  status      String   // Hadir, Sakit, Izin, Alpa, Cuti
+  keterangan  String?
+  createdAt   DateTime @default(now())
+
+  @@unique([pegawaiId, tanggal])
+}
+
+// ============ TRANSAKSI KEUANGAN ============
+
+model TagihanSiswa {
+  id          Int      @id @default(autoincrement())
+  siswaId     Int
+  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  tarifPembayaranId Int
+  tarifPembayaran TarifPembayaran @relation(fields: [tarifPembayaranId], references: [id])
+  tahunAjaranId Int
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  bulanTagihan String? // "Januari", "Februari" - null jika sekali bayar
+  nominal     Int
+  statusLunas Boolean  @default(false)
+  tanggalJatuhTempo DateTime?
+  createdAt   DateTime @default(now())
+
+  pembayarans Pembayaran[]
+}
+
+model Pembayaran {
+  id          Int      @id @default(autoincrement())
+  tagihanSiswaId Int
+  tagihanSiswa TagihanSiswa @relation(fields: [tagihanSiswaId], references: [id], onDelete: Cascade)
+  pegawaiId   Int
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id])
+  tanggalBayar DateTime @default(now())
+  jumlahBayar Int
+  metodePembayaran String // Tunai, Transfer, Debit, QRIS
+  kodeKwitansi String   @unique
+  keterangan  String?
+  createdAt   DateTime @default(now())
+}
+
+model Pengeluaran {
+  id          Int      @id @default(autoincrement())
+  pegawaiId   Int
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id])
+  posAnggaranId Int
+  posAnggaran PosAnggaran @relation(fields: [posAnggaranId], references: [id])
+  tanggal     DateTime @default(now())
+  nominal     Int
+  keterangan  String
+  buktiNotaUrl String?
+  createdAt   DateTime @default(now())
+}
+
+// ============ TRANSAKSI SARANA ============
+
+model PeminjamanBarang {
+  id          Int      @id @default(autoincrement())
+  barangId    Int
+  barang      Barang   @relation(fields: [barangId], references: [id])
+  peminjamPegawaiId Int?
+  pegawai     Pegawai? @relation(fields: [peminjamPegawaiId], references: [id])
+  tanggalPinjam DateTime @default(now())
+  tanggalKembaliRencana DateTime
+  tanggalKembaliAktual DateTime?
+  kondisiKembali String?
+  status      String   @default("Dipinjam") // Dipinjam, Dikembalikan
+  keterangan  String?
+  createdAt   DateTime @default(now())
+}
+
+// ============ TRANSAKSI KOMUNIKASI ============
+
+model Pengumuman {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  pegawaiId   Int
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id])
+  judul       String
+  isi         String
+  target      String   @default("Semua") // Semua, Siswa, Ortu, Guru
+  tanggalPosting DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model GaleriBerita {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  judul       String
+  konten      String
+  gambarUrl   String?
+  kategori    String?  // Berita, Galeri, Pengumuman
+  tanggalPosting DateTime @default(now())
+  createdAt   DateTime @default(now())
 }
