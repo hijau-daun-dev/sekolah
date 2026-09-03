@@ -7,6 +7,8 @@ import {
   Users,
   GraduationCap,
   Network,
+  DoorOpen,
+  BookOpen,
   GraduationCap as Cap,
   Menu,
   X,
@@ -17,14 +19,18 @@ import { SchoolForm } from "@/components/school/school-form";
 import { TeachersSection } from "@/components/school/teachers-section";
 import { StudentsSection } from "@/components/school/students-section";
 import { OrgStructure } from "@/components/school/org-structure";
+import { ClassroomsSection } from "@/components/school/classrooms-section";
+import { SubjectsSection } from "@/components/school/subjects-section";
 
-type Tab = "dashboard" | "school" | "teachers" | "students" | "structure";
+type Tab = "dashboard" | "school" | "teachers" | "students" | "classrooms" | "subjects" | "structure";
 
 const navItems: { id: Tab; label: string; desc: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Dashboard", desc: "Ringkasan & statistik", icon: LayoutDashboard },
   { id: "school", label: "Data Sekolah", desc: "Identitas & logo sekolah", icon: SchoolIcon },
   { id: "teachers", label: "Data Guru", desc: "Kelola data guru", icon: Users },
   { id: "students", label: "Data Siswa", desc: "Kelola data siswa", icon: GraduationCap },
+  { id: "classrooms", label: "Data Kelas", desc: "Daftar kelas & wali kelas", icon: DoorOpen },
+  { id: "subjects", label: "Data Mata Pelajaran", desc: "Daftar mapel & kode", icon: BookOpen },
   { id: "structure", label: "Struktur Organisasi", desc: "Hierarki sekolah", icon: Network },
 ];
 
@@ -33,6 +39,8 @@ const titleMap: Record<Tab, { title: string; subtitle: string }> = {
   school: { title: "Data Sekolah", subtitle: "Kelola identitas, logo, dan kepala sekolah" },
   teachers: { title: "Data Guru", subtitle: "Kelola data guru beserta foto dan posisi organisasi" },
   students: { title: "Data Siswa", subtitle: "Kelola data siswa beserta foto dan wali" },
+  classrooms: { title: "Data Kelas", subtitle: "Kelola daftar kelas, wali kelas, dan kapasitas" },
+  subjects: { title: "Data Mata Pelajaran", subtitle: "Kelola daftar mapel, kode, kategori, dan jam pelajaran" },
   structure: { title: "Struktur Organisasi", subtitle: "Hierarki fleksibel dari kepala sekolah" },
 };
 
@@ -171,6 +179,8 @@ export default function Home() {
             {active === "school" && <SchoolForm />}
             {active === "teachers" && <TeachersSection />}
             {active === "students" && <StudentsSection />}
+            {active === "classrooms" && <ClassroomsSection />}
+            {active === "subjects" && <SubjectsSection />}
             {active === "structure" && <OrgStructure />}
           </div>
 

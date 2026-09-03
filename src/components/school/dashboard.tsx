@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardDescription } from "@/components/ui/card";
-import { School as SchoolIcon, Users, GraduationCap, Network, UserCheck, BookOpen } from "lucide-react";
-import type { School, Teacher, Student } from "@/lib/types";
+import { School as SchoolIcon, Users, GraduationCap, Network, UserCheck, BookOpen, DoorOpen, Library } from "lucide-react";
+import type { School, Teacher, Student, ClassRoom, Subject } from "@/lib/types";
 
 interface DashboardProps {
   onNavigate: (tab: string) => void;
@@ -14,19 +14,25 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [school, setSchool] = useState<School | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassRoom[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const [s, t, st] = await Promise.all([
+        const [s, t, st, c, sub] = await Promise.all([
           fetch("/api/school").then((r) => r.json()),
           fetch("/api/teachers").then((r) => r.json()),
           fetch("/api/students").then((r) => r.json()),
+          fetch("/api/classrooms").then((r) => r.json()),
+          fetch("/api/subjects").then((r) => r.json()),
         ]);
         setSchool(s || null);
         setTeachers(Array.isArray(t) ? t : []);
         setStudents(Array.isArray(st) ? st : []);
+        setClassrooms(Array.isArray(c) ? c : []);
+        setSubjects(Array.isArray(sub) ? sub : []);
       } finally {
         setLoading(false);
       }
@@ -37,7 +43,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const femaleStudents = students.filter((s) => s.gender === "P").length;
   const teacherMale = teachers.filter((t) => t.gender === "L").length;
   const teacherFemale = teachers.filter((t) => t.gender === "P").length;
-  const classCount = new Set(students.map((s) => s.className).filter(Boolean)).size;
+  const totalCapacity = classrooms.reduce((sum, c) => sum + (c.capacity || 0), 0);
+  const totalEnrolled = classrooms.reduce((sum, c) => sum + (c._count?.students || 0), 0);
+  const totalJP = subjects.reduce((sum, s) => sum + (s.durationHours || 0), 0);
 
   const stats = [
     {
@@ -58,11 +66,19 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     },
     {
       label: "Jumlah Kelas",
-      value: classCount,
-      sub: "Kelas terdaftar",
-      icon: BookOpen,
-      tab: "students",
+      value: classrooms.length,
+      sub: totalCapacity ? `${totalEnrolled}/${totalCapacity} terisi` : "Kelas terdaftar",
+      icon: DoorOpen,
+      tab: "classrooms",
       color: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
+    },
+    {
+      label: "Mata Pelajaran",
+      value: subjects.length,
+      sub: totalJP ? `${totalJP} JP/minggu` : "Mapel terdaftar",
+      icon: BookOpen,
+      tab: "subjects",
+      color: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
     },
     {
       label: "Struktur Organisasi",
@@ -71,6 +87,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       icon: Network,
       tab: "structure",
       color: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    },
+    {
+      label: "Kapasitas Total",
+      value: totalCapacity || "—",
+      sub: totalCapacity ? `${totalEnrolled} siswa aktif` : "Belum diatur",
+      icon: Library,
+      tab: "classrooms",
+      color: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
     },
   ];
 
@@ -120,7 +144,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       </Card>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {stats.map((s) => (
           <Card
             key={s.label}
@@ -157,6 +181,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               { label: "Data Sekolah", tab: "school", icon: SchoolIcon },
               { label: "Data Guru", tab: "teachers", icon: Users },
               { label: "Data Siswa", tab: "students", icon: GraduationCap },
+              { label: "Data Kelas", tab: "classrooms", icon: DoorOpen },
+              { label: "Data Mapel", tab: "subjects", icon: BookOpen },
               { label: "Struktur Organisasi", tab: "structure", icon: Network },
             ].map((q) => (
               <button
@@ -206,6 +232,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <span className="font-medium">
                 {teachers.length + students.length} orang
               </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Jumlah Kelas</span>
+              <span className="font-medium">{classrooms.length} kelas</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Jumlah Mata Pelajaran</span>
+              <span className="font-medium">{subjects.length} mapel</span>
             </div>
           </CardContent>
         </Card>
