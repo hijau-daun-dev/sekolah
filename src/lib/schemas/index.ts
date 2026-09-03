@@ -13,7 +13,7 @@ export const pengeluaranSchema = z.object({
   posAnggaranId: z.number().int().positive(),
   nominal: z.number().int().positive(),
   keterangan: z.string().min(1).max(500),
-  buktiNotaUrl: z.string().url().optional().nullable(),
+  buktiNotaUrl: z.string().refine(v => !v || v.startsWith("/") || v.startsWith("http"), "URL tidak valid").optional().nullable(),
   tanggal: z.string().optional(), // ISO date string
 });
 
@@ -67,7 +67,7 @@ export const siswaSchema = z.object({
   tanggalLahir: z.string().optional().nullable(),
   alamat: z.string().max(500).optional().nullable(),
   telepon: z.string().max(30).optional().nullable(),
-  fotoUrl: z.string().url().optional().nullable(),
+  fotoUrl: z.string().refine(v => !v || v.startsWith("/") || v.startsWith("http"), "URL tidak valid").optional().nullable(),
   status: z.enum(["Aktif", "Lulus", "Pindah", "Nonaktif"]).optional(),
 });
 
@@ -82,7 +82,7 @@ export const pegawaiSchema = z.object({
   email: z.string().email().optional().nullable(),
   jabatan: z.string().max(100).optional().nullable(),
   bidangStudi: z.string().max(100).optional().nullable(),
-  fotoUrl: z.string().url().optional().nullable(),
+  fotoUrl: z.string().refine(v => !v || v.startsWith("/") || v.startsWith("http"), "URL tidak valid").optional().nullable(),
   status: z.enum(["Aktif", "Pensiun", "Resign"]).optional(),
   orgLevel: z.number().int().min(0).optional(),
   orgOrder: z.number().int().min(0).optional(),

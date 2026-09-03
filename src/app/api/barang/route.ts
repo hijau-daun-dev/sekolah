@@ -35,8 +35,13 @@ export async function POST(req: NextRequest) {
     const { kode, nama, kategoriBarangId, ruanganId, jumlah, kondisi, status, tanggalBeli, hargaBeli, keterangan } = body;
     if (!nama || !String(nama).trim()) return NextResponse.json({ error: "nama wajib" }, { status: 400 });
 
-    const sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
-    if (!sid) return NextResponse.json({ error: "sekolahId wajib untuk super admin" }, { status: 400 });
+    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+    if (!sid) {
+      const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+      if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+      sid = firstSekolah.id;
+    }
 
     const data = await db.barang.create({
       data: {

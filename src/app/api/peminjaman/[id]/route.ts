@@ -16,10 +16,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!existing) return NextResponse.json({ error: "Peminjaman tidak ditemukan" }, { status: 404 });
 
     const body = await req.json();
-    const { action } = body as { action?: "return" };
+    const action = body.action as string | undefined;
+    const statusField = body.status as string | undefined;
 
-    if (action === "return") {
-      const { kondisiKembali, keterangan } = body as { kondisiKembali?: string; keterangan?: string };
+    // Handle return action: either action="return" OR status="Dikembalikan"
+    if (action === "return" || statusField === "Dikembalikan") {
+      const kondisiKembali = body.kondisiKembali as string | undefined;
+      const keterangan = body.keterangan as string | undefined;
       if (!kondisiKembali || !["Baik", "Rusak"].includes(kondisiKembali)) {
         return NextResponse.json({ error: "kondisiKembali wajib (Baik/Rusak)" }, { status: 400 });
       }

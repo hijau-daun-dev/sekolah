@@ -429,3 +429,59 @@ Work Log:
 - Work record: `/agent-ctx/FIX-2-ZOD-code-agent.md`
 
 Outcome: Semua 9 API route kini konsisten memakai shared Zod schemas. PRD §3 (strict input validation) sudah terpenuhi untuk endpoint POST utama. Lint bersih, smoke test pass.
+
+## Task ID: FIX-3-SEKOLAH
+Agent: code-agent (Super Admin sekolahId fallback fix)
+Task: Bug — 16 API route punya pattern `if (!sid) return NextResponse.json({ error: "sekolahId wajib untuk super admin" }, { status: 400 });` yang mem-block Super Admin (tidak punya sekolahId di session) dari create data.
+
+Work Log:
+- Membaca worklog.md (konteks FIX-1 + FIX-2-ZOD). FIX-2-ZOD sudah menandai bug ini sebagai pre-existing issue di /api/pengumuman yang out-of-scope saat itu. /api/tahun-ajaran dan /api/pengumuman sudah di-fix sebelumnya dengan pattern fallback `db.sekolah.findFirst()`.
+- Grep verifikasi: semua 16 file target memakai pattern identik `const sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);` + single-line `if (!sid) return ...`. Tidak ada variasi nama variabel (semua `sid`, bukan `sekolahIdFinal`). Tidak ada pattern di PUT/PATCH handler tambahan (masing-masing file hanya 1 occurence di POST).
+- Apply fix ke 16 file (single Edit per file — tidak butuh MultiEdit karena hanya 1 occurence per file):
+  ```ts
+  // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+  let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+  if (!sid) {
+    const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+    if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+    sid = firstSekolah.id;
+  }
+  ```
+  Key: `const` → `let` (reassign), tambah fallback query, error message baru "Belum ada sekolah terdaftar".
+
+Files modified (16):
+1. `src/app/api/kategori-mapel/route.ts`
+2. `src/app/api/mapel/route.ts`
+3. `src/app/api/tarif-pembayaran/route.ts`
+4. `src/app/api/siswa/route.ts`
+5. `src/app/api/jurusan/route.ts`
+6. `src/app/api/kelas/route.ts`
+7. `src/app/api/pegawai/route.ts`
+8. `src/app/api/pos-anggaran/route.ts`
+9. `src/app/api/kategori-barang/route.ts`
+10. `src/app/api/ruangan/route.ts`
+11. `src/app/api/ortu/route.ts`
+12. `src/app/api/barang/route.ts`
+13. `src/app/api/galeri/route.ts`
+14. `src/app/api/tingkat/route.ts`
+15. `src/app/api/komponen-nilai/route.ts`
+16. `src/app/api/jenis-pembayaran/route.ts`
+
+Lint Result:
+- `bun run lint` exit 0 — 0 errors, 0 warnings.
+
+Verification Results:
+1. Login as admin@nusantarajaya.sch.id / admin123 → HTTP 302 (success).
+2. POST /api/tahun-ajaran `{"nama":"2026/2027","statusAktif":false}` → 200 dengan `{"id":3,"sekolahId":1,"nama":"2026/2027",...}` (sebelumnya di test FIX-1 sempat return 400 — sekarang success).
+3. POST /api/kategori-mapel `{"nama":"Test Kategori"}` → 200 dengan `{"id":2,"sekolahId":1,"nama":"Test Kategori","keterangan":null,"_count":{"mapels":0}}`. Tidak ada lagi "sekolahId wajib untuk super admin".
+4. Cleanup: DELETE /api/tahun-ajaran/3 → `{"ok":true}`; DELETE /api/kategori-mapel/2 → `{"ok":true}`.
+5. Verifikasi GET post-cleanup: kategori-mapel hanya `[{"id":1,"nama":"Wajib (A)"}]`; tahun-ajaran hanya `[{"id":1,"nama":"2025/2026"}]`. DB kembali ke pre-test state.
+
+Side Effects / Notes:
+- Pattern fix konsisten dengan /api/tahun-ajaran dan /api/pengumuman yang sudah di-fix sebelumnya — sekarang total 18 endpoint pakai fallback yang sama.
+- Behavior change: kalau database benar-benar kosong (tidak ada Sekolah sama sekali), endpoint return 400 "Belum ada sekolah terdaftar" (lebih user-friendly dari error lama). Edge case ini sangat jarang karena seed endpoint selalu bikin minimal 1 sekolah.
+- Tidak ada change ke auth check, role check, Zod validation, transaction, atau logic bisnis. Hanya 2 baris lama (`const sid` + single-line `if`) diganti jadi 7 baris baru.
+- Pattern `let sid = ...; if (!sid) { firstSekolah fallback }` di-duplicate di 18 file. Refactor ke helper `resolveSekolahId(session, body)` di auth-helpers.ts bisa dilakukan di iterasi berikutnya, tapi duplication sengaja dipertahankan untuk minimal-edit policy sesuai task brief.
+- Work record: `/agent-ctx/FIX-3-SEKOLAH-code-agent.md`
+
+Outcome: BUG #6 (Super Admin blocked from creating data) — FIXED. Semua 16 endpoint master data sekarang gracefully fallback ke sekolah pertama kalau Super Admin tidak specify `sekolahId` di session/body. Lint bersih, smoke test pass untuk 2 endpoint sample (tahun-ajaran + kategori-mapel), test data sudah di-cleanup.

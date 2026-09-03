@@ -40,8 +40,13 @@ export async function POST(req: NextRequest) {
     if (!tingkatId) return NextResponse.json({ error: "tingkatId wajib" }, { status: 400 });
     if (!tahunAjaranId) return NextResponse.json({ error: "tahunAjaranId wajib" }, { status: 400 });
 
-    const sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
-    if (!sid) return NextResponse.json({ error: "sekolahId wajib untuk super admin" }, { status: 400 });
+    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+    if (!sid) {
+      const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+      if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+      sid = firstSekolah.id;
+    }
 
     const data = await db.kelas.create({
       data: {
