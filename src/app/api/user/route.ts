@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { userSchema } from "@/lib/schemas";
 
 export async function GET() {
   try {
@@ -47,10 +48,29 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { email, password, name, roleId, sekolahId, pegawaiId, ortuId, siswaId, isActive } = body;
+    // Zod validation (PRD §3)
+    const parsed = userSchema.safeParse({
+      email: body.email,
+      password: body.password,
+      name: body.name,
+      roleId: body.roleId != null ? Number(body.roleId) : undefined,
+      sekolahId: body.sekolahId != null ? Number(body.sekolahId) : null,
+      pegawaiId: body.pegawaiId != null ? Number(body.pegawaiId) : null,
+      ortuId: body.ortuId != null ? Number(body.ortuId) : null,
+      siswaId: body.siswaId != null ? Number(body.siswaId) : null,
+      isActive: body.isActive,
+    });
+    if (!parsed.success) {
+      return NextResponse.json({
+        error: "Validasi gagal",
+        details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      }, { status: 400 });
+    }
+    const { email, password, name, roleId, sekolahId, pegawaiId, ortuId, siswaId, isActive } = parsed.data;
 
-    if (!email || !password || !name || !roleId) {
-      return NextResponse.json({ error: "Field wajib: email, password, name, roleId" }, { status: 400 });
+    // POST requires password (schema marks it optional to allow PUT to omit it)
+    if (!password) {
+      return NextResponse.json({ error: "password wajib diisi" }, { status: 400 });
     }
 
     // Check email uniqueness
@@ -60,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate role exists
-    const roleRec = await db.role.findUnique({ where: { id: Number(roleId) } });
+    const roleRec = await db.role.findUnique({ where: { id: roleId } });
     if (!roleRec) return NextResponse.json({ error: "Role tidak ditemukan" }, { status: 400 });
 
     const hashed = await bcrypt.hash(String(password), 10);
@@ -70,11 +90,11 @@ export async function POST(req: NextRequest) {
         email: String(email).toLowerCase(),
         password: hashed,
         name: String(name).trim(),
-        roleId: Number(roleId),
-        sekolahId: sekolahId ? Number(sekolahId) : null,
-        pegawaiId: pegawaiId ? Number(pegawaiId) : null,
-        ortuId: ortuId ? Number(ortuId) : null,
-        siswaId: siswaId ? Number(siswaId) : null,
+        roleId,
+        sekolahId: sekolahId ?? null,
+        pegawaiId: pegawaiId ?? null,
+        ortuId: ortuId ?? null,
+        siswaId: siswaId ?? null,
         isActive: isActive !== false,
       },
       include: {

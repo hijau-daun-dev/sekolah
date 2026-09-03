@@ -1,0 +1,867 @@
+     1→"use client";
+     2→
+     3→import { useCallback, useEffect, useState } from "react";
+     4→import { BookOpen, CalendarDays, Layers, DoorOpen, GraduationCap, Award, Users, Loader2, X, Plus, Pencil, Trash2 } from "lucide-react";
+     5→import { Card, CardContent } from "@/components/ui/card";
+     6→import { Button } from "@/components/ui/button";
+     7→import { Input } from "@/components/ui/input";
+     8→import { Label } from "@/components/ui/label";
+     9→import { Badge } from "@/components/ui/badge";
+    10→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    11→import {
+    12→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    13→} from "@/components/ui/dialog";
+    14→import {
+    15→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    16→} from "@/components/ui/select";
+    17→import { useToast } from "@/hooks/use-toast";
+    18→import { CrudTable, type ColumnDef, type FieldDef } from "./_crud-table";
+    19→import { fmtDateDisplay } from "./_format";
+    20→
+    21→interface TahunAjaran {
+    22→  id: number; nama: string; tanggalMulai?: string | null; tanggalSelesai?: string | null;
+    23→  statusAktif: boolean; _count?: { semesters: number; kelases: number };
+    24→}
+    25→interface Semester {
+    26→  id: number; tahunAjaranId: number; nama: string; statusAktif: boolean;
+    27→  tanggalMulai?: string | null; tanggalSelesai?: string | null;
+    28→  tahunAjaran?: { id: number; nama: string; statusAktif: boolean };
+    29→}
+    30→interface Tingkat { id: number; nama: string; jenjang?: string | null; urutan: number; }
+    31→interface Jurusan { id: number; kode: string; nama: string; keterangan?: string | null; _count?: { kelases: number }; }
+    32→interface Kelas {
+    33→  id: number; nama: string; tingkatId: number; jurusanId?: number | null; tahunAjaranId: number;
+    34→  walikelasId?: number | null; ruangan?: string | null; kapasitas?: number | null;
+    35→  tingkat?: { id: number; nama: string; jenjang?: string | null };
+    36→  jurusan?: { id: number; kode: string; nama: string } | null;
+    37→  tahunAjaran?: { id: number; nama: string; statusAktif: boolean };
+    38→  walikelas?: { id: number; nama: string; jabatan?: string | null } | null;
+    39→  _count?: { kelasSiswas: number };
+    40→}
+    41→interface KategoriMapel { id: number; nama: string; keterangan?: string | null; _count?: { mapels: number }; }
+    42→interface Mapel {
+    43→  id: number; kode?: string | null; nama: string; kategoriMapelId?: number | null;
+    44→  jpPerMinggu?: number | null; keterangan?: string | null;
+    45→  kategoriMapel?: { id: number; nama: string } | null;
+    46→  _count?: { guruMapels: number; jadwals: number };
+    47→}
+    48→interface KomponenNilai { id: number; nama: string; bobot: number; keterangan?: string | null; _count?: { penilaians: number }; }
+    49→interface GuruMapel {
+    50→  id: number; pegawaiId: number; mapelId: number; kelasId?: number | null;
+    51→  pegawai?: { id: number; nama: string; jabatan?: string | null };
+    52→  mapel?: { id: number; nama: string; kode?: string | null };
+    53→  kelas?: { id: number; nama: string } | null;
+    54→}
+    55→interface PegawaiMini { id: number; nama: string; jabatan?: string | null; }
+    56→interface SiswaMini { id: number; nama: string; nis?: string | null; status?: string | null; }
+    57→interface KelasSiswa {
+    58→  id: number; kelasId: number; siswaId: number; tahunAjaranId: number;
+    59→  kelas?: { id: number; nama: string; tingkat?: { nama: string } | null; tahunAjaran?: { nama: string } | null };
+    60→  siswa?: { id: number; nama: string; nis?: string | null; status?: string | null };
+    61→}
+    62→
+    63→export function AkademikSection() {
+    64→  return (
+    65→    <Tabs defaultValue="ta" className="w-full">
+    66→      <TabsList className="flex w-full overflow-x-auto h-auto p-1 bg-slate-100">
+    67→        <TabsTrigger value="ta" className="text-xs"><CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Tahun Ajaran & Semester</TabsTrigger>
+    68→        <TabsTrigger value="tingkat" className="text-xs"><Layers className="h-3.5 w-3.5 mr-1.5" /> Tingkat & Jurusan</TabsTrigger>
+    69→        <TabsTrigger value="kelas" className="text-xs"><DoorOpen className="h-3.5 w-3.5 mr-1.5" /> Kelas & Siswa</TabsTrigger>
+    70→        <TabsTrigger value="mapel" className="text-xs"><BookOpen className="h-3.5 w-3.5 mr-1.5" /> Mata Pelajaran</TabsTrigger>
+    71→        <TabsTrigger value="nilai" className="text-xs"><Award className="h-3.5 w-3.5 mr-1.5" /> Komponen Nilai & Guru Mapel</TabsTrigger>
+    72→      </TabsList>
+    73→
+    74→      <TabsContent value="ta" className="space-y-4 mt-4">
+    75→        <TahunAjaranTab />
+    76→        <SemesterTab />
+    77→      </TabsContent>
+    78→      <TabsContent value="tingkat" className="space-y-4 mt-4">
+    79→        <TingkatTab />
+    80→        <JurusanTab />
+    81→      </TabsContent>
+    82→      <TabsContent value="kelas" className="space-y-4 mt-4">
+    83→        <KelasTab />
+    84→      </TabsContent>
+    85→      <TabsContent value="mapel" className="space-y-4 mt-4">
+    86→        <KategoriMapelTab />
+    87→        <MapelTab />
+    88→      </TabsContent>
+    89→      <TabsContent value="nilai" className="space-y-4 mt-4">
+    90→        <KomponenNilaiTab />
+    91→        <GuruMapelTab />
+    92→      </TabsContent>
+    93→    </Tabs>
+    94→  );
+    95→}
+    96→
+    97→// ============ Tahun Ajaran ============
+    98→function TahunAjaranTab() {
+    99→  const columns: ColumnDef<TahunAjaran>[] = [
+   100→    { key: "nama", header: "Nama", cell: (r) => (
+   101→      <div className="flex items-center gap-2">
+   102→        <span className="font-medium text-slate-800">{r.nama}</span>
+   103→        {r.statusAktif && <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Aktif</Badge>}
+   104→      </div>
+   105→    ) },
+   106→    { key: "tanggalMulai", header: "Mulai", cell: (r) => fmtDateDisplay(r.tanggalMulai) },
+   107→    { key: "tanggalSelesai", header: "Selesai", cell: (r) => fmtDateDisplay(r.tanggalSelesai) },
+   108→    { key: "_count", header: "Stats", cell: (r) => (
+   109→      <span className="text-xs text-slate-600">{r._count?.semesters ?? 0} semester • {r._count?.kelases ?? 0} kelas</span>
+   110→    ) },
+   111→  ];
+   112→  const fields: FieldDef[] = [
+   113→    { key: "nama", label: "Nama (cth: 2025/2026)", type: "text", required: true, full: true },
+   114→    { key: "tanggalMulai", label: "Tanggal Mulai", type: "date" },
+   115→    { key: "tanggalSelesai", label: "Tanggal Selesai", type: "date" },
+   116→    { key: "statusAktif", label: "Set sebagai Tahun Ajaran Aktif", type: "switch", full: true, help: "Yang lain akan otomatis dinonaktifkan" },
+   117→  ];
+   118→  return (
+   119→    <CrudTable<TahunAjaran>
+   120→      title="Tahun Ajaran"
+   121→      description="Periode tahun ajaran sekolah"
+   122→      fetchUrl="/api/tahun-ajaran"
+   123→      columns={columns}
+   124→      fields={fields}
+   125→      emptyRecord={{ nama: "", tanggalMulai: "", tanggalSelesai: "", statusAktif: false }}
+   126→      searchKeys={["nama"]}
+   127→      searchPlaceholder="Cari tahun ajaran..."
+   128→    />
+   129→  );
+   130→}
+   131→
+   132→// ============ Semester ============
+   133→function SemesterTab() {
+   134→  const [taList, setTaList] = useState<{ value: string; label: string }[]>([]);
+   135→  useEffect(() => {
+   136→    fetch("/api/tahun-ajaran").then((r) => r.json()).then((d: TahunAjaran[]) => {
+   137→      if (Array.isArray(d)) setTaList(d.map((t) => ({ value: String(t.id), label: t.nama + (t.statusAktif ? " (Aktif)" : "") })));
+   138→    });
+   139→  }, []);
+   140→
+   141→  const columns: ColumnDef<Semester>[] = [
+   142→    { key: "nama", header: "Semester", cell: (r) => (
+   143→      <div className="flex items-center gap-2">
+   144→        <span className="font-medium text-slate-800">{r.nama}</span>
+   145→        {r.statusAktif && <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Aktif</Badge>}
+   146→      </div>
+   147→    ) },
+   148→    { key: "tahunAjaran", header: "Tahun Ajaran", cell: (r) => r.tahunAjaran?.nama || "-" },
+   149→    { key: "tanggalMulai", header: "Mulai", cell: (r) => fmtDateDisplay(r.tanggalMulai) },
+   150→    { key: "tanggalSelesai", header: "Selesai", cell: (r) => fmtDateDisplay(r.tanggalSelesai) },
+   151→  ];
+   152→  const fields: FieldDef[] = [
+   153→    { key: "tahunAjaranId", label: "Tahun Ajaran", type: "select", required: true, full: true, options: taList },
+   154→    { key: "nama", label: "Nama Semester", type: "select", required: true, options: [{ value: "Ganjil", label: "Ganjil" }, { value: "Genap", label: "Genap" }] },
+   155→    { key: "statusAktif", label: "Set sebagai Semester Aktif", type: "switch", help: "Yang lain otomatis dinonaktifkan" },
+   156→    { key: "tanggalMulai", label: "Tanggal Mulai", type: "date" },
+   157→    { key: "tanggalSelesai", label: "Tanggal Selesai", type: "date" },
+   158→  ];
+   159→  return (
+   160→    <CrudTable<Semester>
+   161→      title="Semester"
+   162→      description="Semester per tahun ajaran"
+   163→      fetchUrl="/api/semester"
+   164→      columns={columns}
+   165→      fields={fields}
+   166→      emptyRecord={{ tahunAjaranId: "", nama: "", statusAktif: false, tanggalMulai: "", tanggalSelesai: "" }}
+   167→      searchKeys={["nama"]}
+   168→      searchPlaceholder="Cari semester..."
+   169→    />
+   170→  );
+   171→}
+   172→
+   173→// ============ Tingkat ============
+   174→function TingkatTab() {
+   175→  const columns: ColumnDef<Tingkat>[] = [
+   176→    { key: "urutan", header: "Urutan", cell: (r) => <span className="text-slate-600">{r.urutan}</span> },
+   177→    { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
+   178→    { key: "jenjang", header: "Jenjang", cell: (r) => r.jenjang ? <Badge variant="outline" className="text-[10px]">{r.jenjang}</Badge> : "-" },
+   179→  ];
+   180→  const fields: FieldDef[] = [
+   181→    { key: "nama", label: "Nama (cth: 1, 2, ..., 9)", type: "text", required: true },
+   182→    { key: "jenjang", label: "Jenjang", type: "select", options: [{ value: "SD", label: "SD" }, { value: "SMP", label: "SMP" }] },
+   183→    { key: "urutan", label: "Urutan", type: "number" },
+   184→  ];
+   185→  return (
+   186→    <CrudTable<Tingkat>
+   187→      title="Tingkat"
+   188→      description="Tingkat kelas (1-9 untuk SD-SMP)"
+   189→      fetchUrl="/api/tingkat"
+   190→      columns={columns}
+   191→      fields={fields}
+   192→      emptyRecord={{ nama: "", jenjang: "", urutan: 0 }}
+   193→      searchKeys={["nama"]}
+   194→      searchPlaceholder="Cari tingkat..."
+   195→    />
+   196→  );
+   197→}
+   198→
+   199→// ============ Jurusan ============
+   200→function JurusanTab() {
+   201→  const columns: ColumnDef<Jurusan>[] = [
+   202→    { key: "kode", header: "Kode", cell: (r) => <Badge variant="outline" className="text-[10px]">{r.kode}</Badge> },
+   203→    { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
+   204→    { key: "keterangan", header: "Keterangan", cell: (r) => <span className="text-xs text-slate-600">{r.keterangan || "-"}</span> },
+   205→    { key: "_count", header: "Kelas", cell: (r) => r._count?.kelases ?? 0 },
+   206→  ];
+   207→  const fields: FieldDef[] = [
+   208→    { key: "kode", label: "Kode *", type: "text", required: true, placeholder: "cth: IPA" },
+   209→    { key: "nama", label: "Nama *", type: "text", required: true, full: true },
+   210→    { key: "keterangan", label: "Keterangan", type: "textarea", full: true },
+   211→  ];
+   212→  return (
+   213→    <CrudTable<Jurusan>
+   214→      title="Jurusan"
+   215→      description="Jurusan (untuk SMP)"
+   216→      fetchUrl="/api/jurusan"
+   217→      columns={columns}
+   218→      fields={fields}
+   219→      emptyRecord={{ kode: "", nama: "", keterangan: "" }}
+   220→      searchKeys={["nama", "kode"]}
+   221→      searchPlaceholder="Cari jurusan..."
+   222→    />
+   223→  );
+   224→}
+   225→
+   226→// ============ Kelas (with kelas-siswa management) ============
+   227→function KelasTab() {
+   228→  const [tingkatList, setTingkatList] = useState<{ value: string; label: string }[]>([]);
+   229→  const [jurusanList, setJurusanList] = useState<{ value: string; label: string }[]>([]);
+   230→  const [taList, setTaList] = useState<{ value: string; label: string }[]>([]);
+   231→  const [pegawaiList, setPegawaiList] = useState<{ value: string; label: string }[]>([]);
+   232→  const [list, setList] = useState<Kelas[]>([]);
+   233→  const [loading, setLoading] = useState(true);
+   234→  const [search, setSearch] = useState("");
+   235→  const [dialogOpen, setDialogOpen] = useState(false);
+   236→  const [editing, setEditing] = useState<Partial<Kelas> | null>(null);
+   237→  const [saving, setSaving] = useState(false);
+   238→  const [delTarget, setDelTarget] = useState<Kelas | null>(null);
+   239→  const [siswaDialogKelas, setSiswaDialogKelas] = useState<Kelas | null>(null);
+   240→  const { toast } = useToast();
+   241→
+   242→  const load = useCallback(async () => {
+   243→    setLoading(true);
+   244→    try {
+   245→      const r = await fetch("/api/kelas");
+   246→      const d = await r.json();
+   247→      if (Array.isArray(d)) setList(d);
+   248→    } catch {
+   249→      toast({ title: "Gagal memuat kelas", variant: "destructive" });
+   250→    } finally {
+   251→      setLoading(false);
+   252→    }
+   253→  }, [toast]);
+   254→
+   255→  useEffect(() => {
+   256→    load();
+   257→    Promise.all([
+   258→      fetch("/api/tingkat").then((r) => r.json()),
+   259→      fetch("/api/jurusan").then((r) => r.json()),
+   260→      fetch("/api/tahun-ajaran").then((r) => r.json()),
+   261→      fetch("/api/pegawai").then((r) => r.json()),
+   262→    ]).then(([t, j, ta, pg]: [Tingkat[], Jurusan[], TahunAjaran[], PegawaiMini[]]) => {
+   263→      if (Array.isArray(t)) setTingkatList(t.map((x) => ({ value: String(x.id), label: `${x.nama}${x.jenjang ? ` (${x.jenjang})` : ""}` })));
+   264→      if (Array.isArray(j)) setJurusanList(j.map((x) => ({ value: String(x.id), label: `${x.kode} - ${x.nama}` })));
+   265→      if (Array.isArray(ta)) setTaList(ta.map((x) => ({ value: String(x.id), label: x.nama + (x.statusAktif ? " (Aktif)" : "") })));
+   266→      if (Array.isArray(pg)) setPegawaiList(pg.map((x) => ({ value: String(x.id), label: x.nama + (x.jabatan ? ` (${x.jabatan})` : "") })));
+   267→    });
+   268→  }, [load]);
+   269→
+   270→  const filtered = list.filter((k) => {
+   271→    if (!search) return true;
+   272→    const q = search.toLowerCase();
+   273→    return k.nama.toLowerCase().includes(q) || (k.tingkat?.nama || "").toLowerCase().includes(q);
+   274→  });
+   275→
+   276→  const handleAdd = () => {
+   277→    // prefill tahun ajaran aktif
+   278→    const aktifTa = taList.length > 0 ? taList[0].value : "";
+   279→    setEditing({ nama: "", tingkatId: undefined, jurusanId: null, tahunAjaranId: aktifTa ? Number(aktifTa) : undefined, walikelasId: null, ruangan: "", kapasitas: null });
+   280→    setDialogOpen(true);
+   281→  };
+   282→  const handleEdit = (k: Kelas) => { setEditing({ ...k }); setDialogOpen(true); };
+   283→
+   284→  const handleSave = async () => {
+   285→    if (!editing?.nama?.trim()) { toast({ title: "Nama wajib", variant: "destructive" }); return; }
+   286→    if (!editing.tingkatId) { toast({ title: "Tingkat wajib", variant: "destructive" }); return; }
+   287→    if (!editing.tahunAjaranId) { toast({ title: "Tahun ajaran wajib", variant: "destructive" }); return; }
+   288→    setSaving(true);
+   289→    try {
+   290→      const url = editing.id ? `/api/kelas/${editing.id}` : "/api/kelas";
+   291→      const method = editing.id ? "PUT" : "POST";
+   292→      const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(editing) });
+   293→      const d = await r.json();
+   294→      if (!r.ok) throw new Error(d.error || "Gagal menyimpan");
+   295→      toast({ title: editing.id ? "Kelas diperbarui" : "Kelas ditambahkan" });
+   296→      setDialogOpen(false); setEditing(null); await load();
+   297→    } catch (e) {
+   298→      toast({ title: "Gagal menyimpan", description: e instanceof Error ? e.message : "", variant: "destructive" });
+   299→    } finally { setSaving(false); }
+   300→  };
+   301→
+   302→  const handleDelete = async () => {
+   303→    if (!delTarget) return;
+   304→    try {
+   305→      const r = await fetch(`/api/kelas/${delTarget.id}`, { method: "DELETE" });
+   306→      const d = await r.json();
+   307→      if (!r.ok) throw new Error(d.error || "Gagal menghapus");
+   308→      toast({ title: "Kelas dihapus" });
+   309→      setDelTarget(null); await load();
+   310→    } catch (e) {
+   311→      toast({ title: "Gagal menghapus", description: e instanceof Error ? e.message : "", variant: "destructive" });
+   312→    }
+   313→  };
+   314→
+   315→  const update = (k: keyof Kelas, v: unknown) => setEditing((p) => p ? { ...p, [k]: v } : p);
+   316→
+   317→  return (
+   318→    <Card className="border-slate-200">
+   319→      <CardContent className="p-4 space-y-4">
+   320→        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+   321→          <div>
+   322→            <h3 className="text-base font-semibold text-slate-800">Kelas</h3>
+   323→            <p className="text-xs text-slate-500">Kelas per tahun ajaran & tingkat</p>
+   324→          </div>
+   325→          <div className="flex gap-2">
+   326→            <div className="relative w-full sm:w-56">
+   327→              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   328→                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+   329→              </svg>
+   330→              <Input placeholder="Cari kelas..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+   331→            </div>
+   332→            <Button size="sm" onClick={handleAdd} className="bg-slate-700 hover:bg-slate-800"><Plus className="h-4 w-4 mr-1" /> Tambah</Button>
+   333→          </div>
+   334→        </div>
+   335→        {loading ? (
+   336→          <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-500" /></div>
+   337→        ) : filtered.length === 0 ? (
+   338→          <div className="text-center py-8 text-slate-500"><p className="text-sm">Belum ada kelas.</p></div>
+   339→        ) : (
+   340→          <div className="border border-slate-200 rounded-lg overflow-x-auto">
+   341→            <table className="w-full text-sm">
+   342→              <thead className="bg-slate-50 text-slate-600">
+   343→                <tr>
+   344→                  <th className="text-left px-3 py-2 font-medium">Nama</th>
+   345→                  <th className="text-left px-3 py-2 font-medium">Tingkat</th>
+   346→                  <th className="text-left px-3 py-2 font-medium">Jurusan</th>
+   347→                  <th className="text-left px-3 py-2 font-medium">TA</th>
+   348→                  <th className="text-left px-3 py-2 font-medium">Walikelas</th>
+   349→                  <th className="text-left px-3 py-2 font-medium">Siswa</th>
+   350→                  <th className="text-right px-3 py-2 font-medium w-32">Aksi</th>
+   351→                </tr>
+   352→              </thead>
+   353→              <tbody className="divide-y divide-slate-100">
+   354→                {filtered.map((k) => (
+   355→                  <tr key={k.id} className="hover:bg-slate-50/60">
+   356→                    <td className="px-3 py-2 font-medium text-slate-800">{k.nama}{k.ruangan && <span className="text-[10px] text-slate-500 block">{k.ruangan}</span>}</td>
+   357→                    <td className="px-3 py-2">{k.tingkat?.nama || "-"}</td>
+   358→                    <td className="px-3 py-2">{k.jurusan?.nama || "-"}</td>
+   359→                    <td className="px-3 py-2">{k.tahunAjaran?.nama}{k.tahunAjaran?.statusAktif && <Badge className="ml-1 bg-emerald-100 text-emerald-700 text-[10px]">Aktif</Badge>}</td>
+   360→                    <td className="px-3 py-2">{k.walikelas?.nama || "-"}</td>
+   361→                    <td className="px-3 py-2"><Badge variant="outline" className="text-[10px]">{k._count?.kelasSiswas ?? 0} siswa</Badge></td>
+   362→                    <td className="px-3 py-2 text-right whitespace-nowrap">
+   363→                      <Button size="sm" variant="outline" className="h-7" onClick={() => setSiswaDialogKelas(k)}>
+   364→                        <Users className="h-3 w-3 mr-1" /> Siswa
+   365→                      </Button>
+   366→                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(k)} title="Edit">
+   367→                        <Pencil className="h-3.5 w-3.5" />
+   368→                      </Button>
+   369→                      <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600 hover:bg-rose-50" onClick={() => setDelTarget(k)} title="Hapus">
+   370→                        <Trash2 className="h-3.5 w-3.5" />
+   371→                      </Button>
+   372→                    </td>
+   373→                  </tr>
+   374→                ))}
+   375→              </tbody>
+   376→            </table>
+   377→          </div>
+   378→        )}
+   379→      </CardContent>
+   380→
+   381→      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditing(null); }}>
+   382→        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+   383→          <DialogHeader>
+   384→            <DialogTitle>{editing?.id ? "Edit Kelas" : "Tambah Kelas"}</DialogTitle>
+   385→            <DialogDescription>Kelas per tahun ajaran & tingkat</DialogDescription>
+   386→          </DialogHeader>
+   387→          {editing && (
+   388→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+   389→              <div className="sm:col-span-2">
+   390→                <Label className="text-sm">Nama Kelas *</Label>
+   391→                <Input value={editing.nama || ""} onChange={(e) => update("nama", e.target.value)} placeholder="cth: 6A" />
+   392→              </div>
+   393→              <div>
+   394→                <Label className="text-sm">Tingkat *</Label>
+   395→                <Select value={editing.tingkatId ? String(editing.tingkatId) : "none"} onValueChange={(v) => update("tingkatId", v === "none" ? null : Number(v))}>
+   396→                  <SelectTrigger className="w-full"><SelectValue placeholder="Pilih tingkat" /></SelectTrigger>
+   397→                  <SelectContent>
+   398→                    <SelectItem value="none" disabled>— Pilih —</SelectItem>
+   399→                    {tingkatList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+   400→                  </SelectContent>
+   401→                </Select>
+   402→              </div>
+   403→              <div>
+   404→                <Label className="text-sm">Jurusan</Label>
+   405→                <Select value={editing.jurusanId ? String(editing.jurusanId) : "none"} onValueChange={(v) => update("jurusanId", v === "none" ? null : Number(v))}>
+   406→                  <SelectTrigger className="w-full"><SelectValue placeholder="Tidak ada" /></SelectTrigger>
+   407→                  <SelectContent>
+   408→                    <SelectItem value="none">— Tidak ada —</SelectItem>
+   409→                    {jurusanList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+   410→                  </SelectContent>
+   411→                </Select>
+   412→              </div>
+   413→              <div>
+   414→                <Label className="text-sm">Tahun Ajaran *</Label>
+   415→                <Select value={editing.tahunAjaranId ? String(editing.tahunAjaranId) : "none"} onValueChange={(v) => update("tahunAjaranId", v === "none" ? null : Number(v))}>
+   416→                  <SelectTrigger className="w-full"><SelectValue placeholder="Pilih TA" /></SelectTrigger>
+   417→                  <SelectContent>
+   418→                    <SelectItem value="none" disabled>— Pilih —</SelectItem>
+   419→                    {taList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+   420→                  </SelectContent>
+   421→                </Select>
+   422→              </div>
+   423→              <div>
+   424→                <Label className="text-sm">Walikelas</Label>
+   425→                <Select value={editing.walikelasId ? String(editing.walikelasId) : "none"} onValueChange={(v) => update("walikelasId", v === "none" ? null : Number(v))}>
+   426→                  <SelectTrigger className="w-full"><SelectValue placeholder="Tidak ada" /></SelectTrigger>
+   427→                  <SelectContent>
+   428→                    <SelectItem value="none">— Tidak ada —</SelectItem>
+   429→                    {pegawaiList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+   430→                  </SelectContent>
+   431→                </Select>
+   432→              </div>
+   433→              <div>
+   434→                <Label className="text-sm">Ruangan</Label>
+   435→                <Input value={editing.ruangan || ""} onChange={(e) => update("ruangan", e.target.value)} />
+   436→              </div>
+   437→              <div>
+   438→                <Label className="text-sm">Kapasitas</Label>
+   439→                <Input type="number" value={editing.kapasitas ?? ""} onChange={(e) => update("kapasitas", e.target.value === "" ? null : Number(e.target.value))} />
+   440→              </div>
+   441→            </div>
+   442→          )}
+   443→          <DialogFooter>
+   444→            <Button variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
+   445→            <Button onClick={handleSave} disabled={saving} className="bg-slate-700 hover:bg-slate-800">
+   446→              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Simpan
+   447→            </Button>
+   448→          </DialogFooter>
+   449→        </DialogContent>
+   450→      </Dialog>
+   451→
+   452→      <Dialog open={!!siswaDialogKelas} onOpenChange={(o) => !o && setSiswaDialogKelas(null)}>
+   453→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+   454→          <DialogHeader>
+   455→            <DialogTitle>Siswa Kelas: {siswaDialogKelas?.nama}</DialogTitle>
+   456→            <DialogDescription>Tahun ajaran {siswaDialogKelas?.tahunAjaran?.nama}. Tambah / hapus siswa dari kelas ini.</DialogDescription>
+   457→          </DialogHeader>
+   458→          {siswaDialogKelas && <KelasSiswaManager kelas={siswaDialogKelas} />}
+   459→        </DialogContent>
+   460→      </Dialog>
+   461→
+   462→      <DeleteDialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)} onConfirm={handleDelete} />
+   463→    </Card>
+   464→  );
+   465→}
+   466→
+   467→function DeleteDialog({ open, onOpenChange, onConfirm }: { open: boolean; onOpenChange: (o: boolean) => void; onConfirm: () => void }) {
+   468→  return (
+   469→    <Dialog open={open} onOpenChange={onOpenChange}>
+   470→      <DialogContent className="max-w-md">
+   471→        <DialogHeader>
+   472→          <DialogTitle>Hapus data?</DialogTitle>
+   473→          <DialogDescription>Yakin menghapus data ini? Tindakan tidak dapat dibatalkan.</DialogDescription>
+   474→        </DialogHeader>
+   475→        <DialogFooter>
+   476→          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+   477→          <Button onClick={onConfirm} className="bg-rose-600 hover:bg-rose-700">Hapus</Button>
+   478→        </DialogFooter>
+   479→      </DialogContent>
+   480→    </Dialog>
+   481→  );
+   482→}
+   483→
+   484→function KelasSiswaManager({ kelas }: { kelas: Kelas }) {
+   485→  const [list, setList] = useState<KelasSiswa[]>([]);
+   486→  const [allSiswa, setAllSiswa] = useState<SiswaMini[]>([]);
+   487→  const [loading, setLoading] = useState(true);
+   488→  const [pick, setPick] = useState<string>("");
+   489→  const [adding, setAdding] = useState(false);
+   490→  const { toast } = useToast();
+   491→
+   492→  const load = useCallback(async () => {
+   493→    setLoading(true);
+   494→    try {
+   495→      const [r1, r2] = await Promise.all([
+   496→        fetch(`/api/kelas-siswa?kelasId=${kelas.id}`),
+   497→        fetch("/api/siswa"),
+   498→      ]);
+   499→      const d1 = await r1.json();
+   500→      const d2 = await r2.json();
+   501→      if (Array.isArray(d1)) setList(d1);
+   502→      if (Array.isArray(d2)) setAllSiswa(d2);
+   503→    } catch { /* ignore */ } finally { setLoading(false); }
+   504→  }, [kelas.id]);
+   505→
+   506→  useEffect(() => { load(); }, [load]);
+   507→
+   508→  const linkedIds = new Set(list.map((x) => x.siswaId));
+   509→  const available = allSiswa.filter((s) => !linkedIds.has(s.id));
+   510→
+   511→  const handleAdd = async () => {
+   512→    if (!pick) return;
+   513→    setAdding(true);
+   514→    try {
+   515→      const r = await fetch("/api/kelas-siswa", {
+   516→        method: "POST", headers: { "Content-Type": "application/json" },
+   517→        body: JSON.stringify({ kelasId: kelas.id, siswaId: Number(pick), tahunAjaranId: kelas.tahunAjaranId }),
+   518→      });
+   519→      const d = await r.json();
+   520→      if (!r.ok) throw new Error(d.error || "Gagal menambah");
+   521→      setPick("");
+   522→      await load();
+   523→      toast({ title: "Siswa ditambahkan ke kelas" });
+   524→    } catch (e) {
+   525→      toast({ title: "Gagal menambah", description: e instanceof Error ? e.message : "", variant: "destructive" });
+   526→    } finally { setAdding(false); }
+   527→  };
+   528→
+   529→  const handleRemove = async (ksid: number, nama: string) => {
+   530→    try {
+   531→      const r = await fetch(`/api/kelas-siswa/${ksid}`, { method: "DELETE" });
+   532→      if (!r.ok) throw new Error("Gagal menghapus");
+   533→      await load();
+   534→      toast({ title: `${nama} dihapus dari kelas` });
+   535→    } catch (e) {
+   536→      toast({ title: "Gagal menghapus", description: e instanceof Error ? e.message : "", variant: "destructive" });
+   537→    }
+   538→  };
+   539→
+   540→  return (
+   541→    <div className="space-y-3">
+   542→      {loading ? (
+   543→        <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-slate-500" /></div>
+   544→      ) : (
+   545→        <>
+   546→          <div className="flex flex-col sm:flex-row gap-2 items-end">
+   547→            <div className="flex-1 w-full">
+   548→              <Label className="text-xs">Tambah Siswa ke Kelas</Label>
+   549→              <Select value={pick} onValueChange={setPick}>
+   550→                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih siswa..." /></SelectTrigger>
+   551→                <SelectContent>
+   552→                  {available.length === 0 ? (
+   553→                    <SelectItem value="_none" disabled>Tidak ada siswa tersedia</SelectItem>
+   554→                  ) : available.map((s) => (
+   555→                    <SelectItem key={s.id} value={String(s.id)}>{s.nama} {s.nis ? `(${s.nis})` : ""}</SelectItem>
+   556→                  ))}
+   557→                </SelectContent>
+   558→              </Select>
+   559→            </div>
+   560→            <Button onClick={handleAdd} disabled={adding || !pick || pick === "_none"} className="bg-slate-700 hover:bg-slate-800">
+   561→              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} Tambah
+   562→            </Button>
+   563→          </div>
+   564→          <div className="border border-slate-200 rounded-lg overflow-hidden max-h-72 overflow-y-auto">
+   565→            {list.length === 0 ? (
+   566→              <div className="text-center py-6 text-sm text-slate-500">Belum ada siswa di kelas ini.</div>
+   567→            ) : (
+   568→              <table className="w-full text-sm">
+   569→                <thead className="bg-slate-50 text-slate-600 sticky top-0">
+   570→                  <tr>
+   571→                    <th className="text-left px-3 py-2 font-medium">Nama</th>
+   572→                    <th className="text-left px-3 py-2 font-medium">NIS</th>
+   573→                    <th className="text-left px-3 py-2 font-medium">Status</th>
+   574→                    <th className="text-right px-3 py-2 font-medium w-12"></th>
+   575→                  </tr>
+   576→                </thead>
+   577→                <tbody className="divide-y divide-slate-100">
+   578→                  {list.map((ks) => (
+   579→                    <tr key={ks.id} className="hover:bg-slate-50/60">
+   580→                      <td className="px-3 py-2 font-medium text-slate-800">{ks.siswa?.nama || "-"}</td>
+   581→                      <td className="px-3 py-2 text-xs">{ks.siswa?.nis || "-"}</td>
+   582→                      <td className="px-3 py-2"><Badge variant="outline" className="text-[10px]">{ks.siswa?.status || "-"}</Badge></td>
+   583→                      <td className="px-3 py-2 text-right">
+   584→                        <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600 hover:bg-rose-50" onClick={() => handleRemove(ks.id, ks.siswa?.nama || "")}>
+   585→                          <X className="h-3.5 w-3.5" />
+   586→                        </Button>
+   587→                      </td>
+   588→                    </tr>
+   589→                  ))}
+   590→                </tbody>
+   591→              </table>
+   592→            )}
+   593→          </div>
+   594→        </>
+   595→      )}
+   596→    </div>
+   597→  );
+   598→}
+   599→
+   600→// ============ Kategori Mapel ============
+   601→function KategoriMapelTab() {
+   602→  const columns: ColumnDef<KategoriMapel>[] = [
+   603→    { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
+   604→    { key: "keterangan", header: "Keterangan", cell: (r) => <span className="text-xs text-slate-600">{r.keterangan || "-"}</span> },
+   605→    { key: "_count", header: "Mapel", cell: (r) => r._count?.mapels ?? 0 },
+   606→  ];
+   607→  const fields: FieldDef[] = [
+   608→    { key: "nama", label: "Nama *", type: "text", required: true, full: true },
+   609→    { key: "keterangan", label: "Keterangan", type: "textarea", full: true },
+   610→  ];
+   611→  return (
+   612→    <CrudTable<KategoriMapel>
+   613→      title="Kategori Mata Pelajaran"
+   614→      description="Pengelompokan mapel (Umum, Agama, Mulok)"
+   615→      fetchUrl="/api/kategori-mapel"
+   616→      columns={columns}
+   617→      fields={fields}
+   618→      emptyRecord={{ nama: "", keterangan: "" }}
+   619→      searchKeys={["nama"]}
+   620→      searchPlaceholder="Cari kategori..."
+   621→    />
+   622→  );
+   623→}
+   624→
+   625→// ============ Mapel ============
+   626→function MapelTab() {
+   627→  const [katList, setKatList] = useState<{ value: string; label: string }[]>([]);
+   628→  useEffect(() => {
+   629→    fetch("/api/kategori-mapel").then((r) => r.json()).then((d: KategoriMapel[]) => {
+   630→      if (Array.isArray(d)) setKatList(d.map((k) => ({ value: String(k.id), label: k.nama })));
+   631→    });
+   632→  }, []);
+   633→  const columns: ColumnDef<Mapel>[] = [
+   634→    { key: "kode", header: "Kode", cell: (r) => r.kode ? <Badge variant="outline" className="text-[10px]">{r.kode}</Badge> : "-" },
+   635→    { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
+   636→    { key: "kategoriMapel", header: "Kategori", cell: (r) => r.kategoriMapel?.nama || "-" },
+   637→    { key: "jpPerMinggu", header: "JP/Minggu", cell: (r) => r.jpPerMinggu ?? "-" },
+   638→  ];
+   639→  const fields: FieldDef[] = [
+   640→    { key: "kode", label: "Kode", type: "text" },
+   641→    { key: "nama", label: "Nama *", type: "text", required: true, full: true },
+   642→    { key: "kategoriMapelId", label: "Kategori", type: "select", options: katList, full: true },
+   643→    { key: "jpPerMinggu", label: "JP per Minggu", type: "number" },
+   644→    { key: "keterangan", label: "Keterangan", type: "textarea", full: true },
+   645→  ];
+   646→  return (
+   647→    <CrudTable<Mapel>
+   648→      title="Mata Pelajaran"
+   649→      description="Daftar mapel & jam pelajaran"
+   650→      fetchUrl="/api/mapel"
+   651→      columns={columns}
+   652→      fields={fields}
+   653→      emptyRecord={{ kode: "", nama: "", kategoriMapelId: "", jpPerMinggu: "", keterangan: "" }}
+   654→      searchKeys={["nama", "kode"]}
+   655→      searchPlaceholder="Cari mapel..."
+   656→    />
+   657→  );
+   658→}
+   659→
+   660→// ============ Komponen Nilai ============
+   661→function KomponenNilaiTab() {
+   662→  const columns: ColumnDef<KomponenNilai>[] = [
+   663→    { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
+   664→    { key: "bobot", header: "Bobot (%)", cell: (r) => <Badge variant="outline" className="text-[10px]">{r.bobot}%</Badge> },
+   665→    { key: "keterangan", header: "Keterangan", cell: (r) => <span className="text-xs text-slate-600">{r.keterangan || "-"}</span> },
+   666→    { key: "_count", header: "Penilaian", cell: (r) => r._count?.penilaians ?? 0 },
+   667→  ];
+   668→  const fields: FieldDef[] = [
+   669→    { key: "nama", label: "Nama * (cth: UTS, UAS, Tugas)", type: "text", required: true, full: true },
+   670→    { key: "bobot", label: "Bobot (0-100)", type: "number", required: true, step: "0.1", help: "Persentase bobot dalam nilai akhir" },
+   671→    { key: "keterangan", label: "Keterangan", type: "textarea", full: true },
+   672→  ];
+   673→  return (
+   674→    <CrudTable<KomponenNilai>
+   675→      title="Komponen Nilai"
+   676→      description="Komponen penilaian (UTS, UAS, Tugas, Harian)"
+   677→      fetchUrl="/api/komponen-nilai"
+   678→      columns={columns}
+   679→      fields={fields}
+   680→      emptyRecord={{ nama: "", bobot: 0, keterangan: "" }}
+   681→      searchKeys={["nama"]}
+   682→      searchPlaceholder="Cari komponen..."
+   683→      validate={(rec) => {
+   684→        const b = Number(rec.bobot);
+   685→        if (Number.isNaN(b) || b < 0 || b > 100) return "Bobot harus 0-100";
+   686→        return null;
+   687→      }}
+   688→    />
+   689→  );
+   690→}
+   691→
+   692→// ============ Guru Mapel ============
+   693→function GuruMapelTab() {
+   694→  const [pgList, setPgList] = useState<{ value: string; label: string }[]>([]);
+   695→  const [mpList, setMpList] = useState<{ value: string; label: string }[]>([]);
+   696→  const [kList, setKList] = useState<{ value: string; label: string }[]>([]);
+   697→  const [list, setList] = useState<GuruMapel[]>([]);
+   698→  const [loading, setLoading] = useState(true);
+   699→  const [dialogOpen, setDialogOpen] = useState(false);
+   700→  const [form, setForm] = useState<{ pegawaiId: string; mapelId: string; kelasId: string }>({ pegawaiId: "", mapelId: "", kelasId: "" });
+   701→  const [saving, setSaving] = useState(false);
+   702→  const [delTarget, setDelTarget] = useState<GuruMapel | null>(null);
+   703→  const { toast } = useToast();
+   704→
+   705→  const load = useCallback(async () => {
+   706→    setLoading(true);
+   707→    try {
+   708→      const r = await fetch("/api/guru-mapel");
+   709→      const d = await r.json();
+   710→      if (Array.isArray(d)) setList(d);
+   711→    } catch { /* ignore */ } finally { setLoading(false); }
+   712→  }, []);
+   713→
+   714→  useEffect(() => {
+   715→    load();
+   716→    Promise.all([
+   717→      fetch("/api/pegawai").then((r) => r.json()),
+   718→      fetch("/api/mapel").then((r) => r.json()),
+   719→      fetch("/api/kelas").then((r) => r.json()),
+   720→    ]).then(([pg, mp, kl]: [PegawaiMini[], Mapel[], Kelas[]]) => {
+   721→      if (Array.isArray(pg)) setPgList(pg.map((x) => ({ value: String(x.id), label: x.nama + (x.jabatan ? ` (${x.jabatan})` : "") })));
+   722→      if (Array.isArray(mp)) setMpList(mp.map((x) => ({ value: String(x.id), label: x.nama + (x.kode ? ` [${x.kode}]` : "") })));
+   723→      if (Array.isArray(kl)) setKList(kl.map((x) => ({ value: String(x.id), label: x.nama })));
+   724→    });
+   725→  }, [load]);
+   726→
+   727→  const handleAdd = async () => {
+   728→    if (!form.pegawaiId || !form.mapelId) { toast({ title: "Pegawai & Mapel wajib", variant: "destructive" }); return; }
+   729→    setSaving(true);
+   730→    try {
+   731→      const r = await fetch("/api/guru-mapel", {
+   732→        method: "POST", headers: { "Content-Type": "application/json" },
+   733→        body: JSON.stringify({
+   734→          pegawaiId: Number(form.pegawaiId),
+   735→          mapelId: Number(form.mapelId),
+   736→          kelasId: form.kelasId ? Number(form.kelasId) : null,
+   737→        }),
+   738→      });
+   739→      const d = await r.json();
+   740→      if (!r.ok) throw new Error(d.error || "Gagal menambah");
+   741→      toast({ title: "Guru mapel ditambahkan" });
+   742→      setDialogOpen(false);
+   743→      setForm({ pegawaiId: "", mapelId: "", kelasId: "" });
+   744→      await load();
+   745→    } catch (e) {
+   746→      toast({ title: "Gagal menambah", description: e instanceof Error ? e.message : "", variant: "destructive" });
+   747→    } finally { setSaving(false); }
+   748→  };
+   749→
+   750→  const handleDelete = async () => {
+   751→    if (!delTarget) return;
+   752→    try {
+   753→      const r = await fetch(`/api/guru-mapel/${delTarget.id}`, { method: "DELETE" });
+   754→      if (!r.ok) throw new Error("Gagal menghapus");
+   755→      toast({ title: "Guru mapel dihapus" });
+   756→      setDelTarget(null);
+   757→      await load();
+   758→    } catch (e) {
+   759→      toast({ title: "Gagal menghapus", description: e instanceof Error ? e.message : "", variant: "destructive" });
+   760→    }
+   761→  };
+   762→
+   763→  return (
+   764→    <Card className="border-slate-200">
+   765→      <CardContent className="p-4 space-y-4">
+   766→        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+   767→          <div>
+   768→            <h3 className="text-base font-semibold text-slate-800">Guru Mapel</h3>
+   769→            <p className="text-xs text-slate-500">Pasangan guru – mapel – kelas</p>
+   770→          </div>
+   771→          <Button size="sm" onClick={() => setDialogOpen(true)} className="bg-slate-700 hover:bg-slate-800"><Plus className="h-4 w-4 mr-1" /> Tambah</Button>
+   772→        </div>
+   773→        {loading ? (
+   774→          <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-500" /></div>
+   775→        ) : list.length === 0 ? (
+   776→          <div className="text-center py-8 text-slate-500"><p className="text-sm">Belum ada data.</p></div>
+   777→        ) : (
+   778→          <div className="border border-slate-200 rounded-lg overflow-x-auto">
+   779→            <table className="w-full text-sm">
+   780→              <thead className="bg-slate-50 text-slate-600">
+   781→                <tr>
+   782→                  <th className="text-left px-3 py-2 font-medium">Guru</th>
+   783→                  <th className="text-left px-3 py-2 font-medium">Mapel</th>
+   784→                  <th className="text-left px-3 py-2 font-medium">Kelas</th>
+   785→                  <th className="text-right px-3 py-2 font-medium w-12"></th>
+   786→                </tr>
+   787→              </thead>
+   788→              <tbody className="divide-y divide-slate-100">
+   789→                {list.map((g) => (
+   790→                  <tr key={g.id} className="hover:bg-slate-50/60">
+   791→                    <td className="px-3 py-2 font-medium text-slate-800">{g.pegawai?.nama || "-"}</td>
+   792→                    <td className="px-3 py-2">{g.mapel?.nama || "-"}</td>
+   793→                    <td className="px-3 py-2">{g.kelas?.nama || <span className="text-slate-400">Semua</span>}</td>
+   794→                    <td className="px-3 py-2 text-right">
+   795→                      <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600 hover:bg-rose-50" onClick={() => setDelTarget(g)}>
+   796→                        <Trash2 className="h-3.5 w-3.5" />
+   797→                      </Button>
+   798→                    </td>
+   799→                  </tr>
+   800→                ))}
+   801→              </tbody>
+   802→            </table>
+   803→          </div>
+   804→        )}
+   805→      </CardContent>
+   806→
+   807→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   808→        <DialogContent className="max-w-md">
+   809→          <DialogHeader>
+   810→            <DialogTitle>Tambah Guru Mapel</DialogTitle>
+   811→            <DialogDescription>Tetapkan guru untuk mapel & kelas tertentu.</DialogDescription>
+   812→          </DialogHeader>
+   813→          <div className="space-y-3 py-2">
+   814→            <div>
+   815→              <Label className="text-sm">Guru / Pegawai *</Label>
+   816→              <Select value={form.pegawaiId} onValueChange={(v) => setForm((p) => ({ ...p, pegawaiId: v }))}>
+   817→                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih guru" /></SelectTrigger>
+   818→                <SelectContent>
+   819→                  {pgList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+   820→                </SelectContent>
+   821→              </Select>
+   822→            </div>
+   823→            <div>
+   824→              <Label className="text-sm">Mata Pelajaran *</Label>
+   825→              <Select value={form.mapelId} onValueChange={(v) => setForm((p) => ({ ...p, mapelId: v }))}>
+   826→                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih mapel" /></SelectTrigger>
+   827→                <SelectContent>
+   828→                  {mpList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+   829→                </SelectContent>
+   830→              </Select>
+   831→            </div>
+   832→            <div>
+   833→              <Label className="text-sm">Kelas (opsional)</Label>
+   834→              <Select value={form.kelasId || "none"} onValueChange={(v) => setForm((p) => ({ ...p, kelasId: v === "none" ? "" : v }))}>
+   835→                <SelectTrigger className="w-full"><SelectValue placeholder="Semua kelas" /></SelectTrigger>
+   836→                <SelectContent>
+   837→                  <SelectItem value="none">— Semua Kelas —</SelectItem>
+   838→                  {kList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+   839→                </SelectContent>
+   840→              </Select>
+   841→            </div>
+   842→          </div>
+   843→          <DialogFooter>
+   844→            <Button variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
+   845→            <Button onClick={handleAdd} disabled={saving} className="bg-slate-700 hover:bg-slate-800">
+   846→              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Simpan
+   847→            </Button>
+   848→          </DialogFooter>
+   849→        </DialogContent>
+   850→      </Dialog>
+   851→
+   852→      <Dialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)}>
+   853→        <DialogContent className="max-w-md">
+   854→          <DialogHeader>
+   855→            <DialogTitle>Hapus guru mapel?</DialogTitle>
+   856→            <DialogDescription>Yakin menghapus penugasan guru ini?</DialogDescription>
+   857→          </DialogHeader>
+   858→          <DialogFooter>
+   859→            <Button variant="outline" onClick={() => setDelTarget(null)}>Batal</Button>
+   860→            <Button onClick={handleDelete} className="bg-rose-600 hover:bg-rose-700">Hapus</Button>
+   861→          </DialogFooter>
+   862→        </DialogContent>
+   863→      </Dialog>
+   864→    </Card>
+   865→  );
+   866→}
+   867→

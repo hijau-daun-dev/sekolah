@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, CalendarDays, Layers, DoorOpen, GraduationCap, Award, Users, Loader2, X, Plus, Pencil, Trash2 } from "lucide-react";
+import { BookOpen, CalendarDays, Layers, DoorOpen, GraduationCap, Award, Users, Loader2, X, Plus, Pencil, Trash2, ArrowUpRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +72,7 @@ export function AkademikSection() {
       </TabsList>
 
       <TabsContent value="ta" className="space-y-4 mt-4">
+        <GenerateKelasCard />
         <TahunAjaranTab />
         <SemesterTab />
       </TabsContent>
@@ -91,6 +92,161 @@ export function AkademikSection() {
         <GuruMapelTab />
       </TabsContent>
     </Tabs>
+  );
+}
+
+// ============ Generate Kelas (Kenaikan) ============
+function GenerateKelasCard() {
+  const [taList, setTaList] = useState<TahunAjaran[]>([]);
+  const [open, setOpen] = useState(false);
+  const [lamaId, setLamaId] = useState<number | null>(null);
+  const [baruId, setBaruId] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<null | { promoted: number; graduated: number; skipped: number; total: number }>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetch("/api/tahun-ajaran")
+      .then((r) => r.json())
+      .then((d: TahunAjaran[]) => {
+        if (Array.isArray(d)) setTaList(d);
+      })
+      .catch(() => { /* ignore */ });
+  }, []);
+
+  const handleOpen = () => {
+    setResult(null);
+    setLamaId(null);
+    setBaruId(null);
+    setOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!lamaId || !baruId) {
+      toast({ title: "Pilih tahun ajaran lama dan baru", variant: "destructive" });
+      return;
+    }
+    if (lamaId === baruId) {
+      toast({ title: "Tahun ajaran lama dan baru tidak boleh sama", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const r = await fetch("/api/generate-kelas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tahunAjaranIdLama: lamaId, tahunAjaranIdBaru: baruId }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Gagal generate kelas");
+      setResult({ promoted: d.promoted, graduated: d.graduated, skipped: d.skipped, total: d.total });
+      toast({
+        title: "Generate Kelas selesai",
+        description: `Naik: ${d.promoted} • Lulus: ${d.graduated} • Skip: ${d.skipped} (total: ${d.total})`,
+      });
+    } catch (e) {
+      toast({
+        title: "Gagal generate kelas",
+        description: e instanceof Error ? e.message : "",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Card className="border-slate-200">
+      <CardContent className="p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+              <ArrowUpRight className="h-4 w-4 text-slate-600" />
+              Generate Kelas (Kenaikan Kelas)
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Naikkan siswa ke kelas di tahun ajaran baru sesuai tingkat berikutnya. Siswa di kelas akhir akan ditandai sebagai &quot;Lulus&quot;.
+            </p>
+          </div>
+          <Button size="sm" onClick={handleOpen} className="bg-slate-700 hover:bg-slate-800 whitespace-nowrap">
+            <ArrowUpRight className="h-4 w-4 mr-1" /> Generate Kelas
+          </Button>
+        </div>
+      </CardContent>
+
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setResult(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Generate Kelas (Kenaikan)</DialogTitle>
+            <DialogDescription>
+              Pilih tahun ajaran lama sebagai sumber, dan tahun ajaran baru sebagai tujuan kenaikan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-3 py-2">
+            <div>
+              <Label className="text-sm">Tahun Ajaran Lama (Sumber) *</Label>
+              <Select
+                value={lamaId ? String(lamaId) : "none"}
+                onValueChange={(v) => setLamaId(v === "none" ? null : Number(v))}
+              >
+                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih tahun ajaran lama" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" disabled>— Pilih —</SelectItem>
+                  {taList.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.nama}{t.statusAktif ? " (Aktif)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm">Tahun Ajaran Baru (Tujuan) *</Label>
+              <Select
+                value={baruId ? String(baruId) : "none"}
+                onValueChange={(v) => setBaruId(v === "none" ? null : Number(v))}
+              >
+                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih tahun ajaran baru" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" disabled>— Pilih —</SelectItem>
+                  {taList.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.nama}{t.statusAktif ? " (Aktif)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Catatan: pastikan kelas pada tahun ajaran baru sudah dibuat (menu Kelas &amp; Siswa) dengan
+              nama mengikuti pola tingkat (cth. &quot;6A&quot; untuk tingkat 6 paralel A). Siswa yang tidak
+              memiliki kelas tujuan akan dilewati (skip).
+            </p>
+
+            {result && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                <div className="font-medium text-slate-800">Hasil:</div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-700">
+                  <span> Total diproses:</span><span className="text-right font-semibold">{result.total}</span>
+                  <span> Naik kelas:</span><span className="text-right font-semibold text-emerald-700">{result.promoted}</span>
+                  <span> Lulus:</span><span className="text-right font-semibold text-amber-700">{result.graduated}</span>
+                  <span> Dilewati (skip):</span><span className="text-right font-semibold text-slate-600">{result.skipped}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
+              {result ? "Tutup" : "Batal"}
+            </Button>
+            <Button onClick={handleSubmit} disabled={submitting} className="bg-slate-700 hover:bg-slate-800">
+              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Jalankan Generate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
 

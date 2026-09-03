@@ -5,8 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import {
   Building2, Users, GraduationCap, DoorOpen, BookOpen, Wallet, FileWarning,
-  Megaphone, TrendingUp, TrendingDown, UserCheck,
+  Megaphone, TrendingUp, TrendingDown, UserCheck, CalendarClock,
 } from "lucide-react";
+
+interface RecentPengumuman {
+  id: number;
+  judul: string;
+  isi: string;
+  target: string;
+  tanggalPosting: string;
+}
 
 interface DashboardProps {
   onNavigate: (tab: string) => void;
@@ -20,6 +28,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       tagihanUnpaid: number; saldoKas: number; totalPemasukan: number; totalPengeluaran: number;
       pengumuman: number;
     };
+    recentPengumuman?: RecentPengumuman[];
     user: { role: string; name: string; sekolahNama: string | null };
   }>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +38,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, []);
 
   const fmtIDR = (n: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
+  const fmtDate = (s: string) => {
+    try {
+      return new Date(s).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    } catch {
+      return s;
+    }
+  };
   const role = data?.user?.role || "GURU";
 
   const cards: { label: string; value: string | number; sub?: string; icon: typeof Users; tab: string; color: string; show: boolean }[] = [
@@ -39,6 +55,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     { label: "Tagihan Belum Lunas", value: data?.stats?.tagihanUnpaid ?? 0, sub: "tagihan", icon: FileWarning, tab: "tagihan", color: "bg-amber-100 text-amber-700", show: ["SUPER_ADMIN", "TU", "KEUANGAN"].includes(role) },
     { label: "Saldo Kas Sekolah", value: loading ? "..." : fmtIDR(data?.stats?.saldoKas ?? 0), sub: "pemasukan − pengeluaran", icon: Wallet, tab: "pengeluaran", color: (data?.stats?.saldoKas ?? 0) >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700", show: ["SUPER_ADMIN", "KEUANGAN"].includes(role) },
   ];
+
+  const showCashFlow = (role === "SUPER_ADMIN" || role === "KEUANGAN") && !loading && data;
+  const showRecentPengumuman = (role === "SISWA" || role === "ORTU" || role === "GURU") && !loading && data;
+  const recentList = (data?.recentPengumuman ?? []).slice(0, 3);
 
   return (
     <div className="space-y-6">
@@ -95,8 +115,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         ))}
       </div>
 
-      {/* Cash flow card */}
-      {(role === "SUPER_ADMIN" || role === "KEUANGAN") && !loading && data && (
+      {/* Cash flow card (SUPER_ADMIN/KEUANGAN) */}
+      {showCashFlow && data && (
         <div className="grid md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -130,6 +150,63 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </Card>
         </div>
       )}
+
+      {/* Recent Pengumuman for SISWA/ORTU/GURU (PRD Alur 6) */}
+      {showRecentPengumuman && (
+        <Card className="border-slate-200">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2 text-slate-800">
+                <Megaphone className="h-4 w-4 text-slate-600" />
+                Pengumuman Terbaru
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Pengumuman terbaru yang ditujukan untuk Anda
+              </CardDescription>
+            </div>
+            <Badge label={`${data?.stats?.pengumuman ?? 0} total`} />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentList.length === 0 ? (
+              <div className="text-center py-6 text-slate-500 text-sm">
+                <Megaphone className="h-6 w-6 mx-auto mb-2 text-slate-300" />
+                Belum ada pengumuman untuk Anda.
+              </div>
+            ) : (
+              recentList.map((p) => (
+                <div
+                  key={p.id}
+                  className="border border-slate-200 rounded-lg p-3 hover:bg-slate-50/60 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-semibold text-sm text-slate-800 line-clamp-1">{p.judul}</h4>
+                        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                          <span className="font-medium">{p.target}</span>
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2">{p.isi}</p>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
+                      <CalendarClock className="h-3 w-3" />
+                      {fmtDate(p.tanggalPosting)}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
+  );
+}
+
+function Badge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+      {label}
+    </span>
   );
 }

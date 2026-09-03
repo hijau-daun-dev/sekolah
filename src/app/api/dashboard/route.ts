@@ -2,6 +2,27 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
+/**
+ * Resolve which `target` values the current user role is allowed to see.
+ * Same logic as /api/pengumuman GET.
+ */
+function allowedTargetsForRole(role: string): string[] | null {
+  switch (role) {
+    case "SUPER_ADMIN":
+    case "TU":
+    case "KEUANGAN":
+      return null; // no filter
+    case "GURU":
+      return ["Semua", "Guru"];
+    case "SISWA":
+      return ["Semua", "Siswa"];
+    case "ORTU":
+      return ["Semua", "Ortu"];
+    default:
+      return ["Semua"];
+  }
+}
+
 export async function GET() {
   try {
     const session = await auth();
@@ -19,7 +40,12 @@ export async function GET() {
     const pengeluaranWhere = sekolahId ? { pegawai: { sekolahId } } : {};
     const pembayaranWhere = sekolahId ? { tagihanSiswa: { siswa: { sekolahId } } } : {};
 
-    const [sekolahs, siswaCount, pegawaiCount, kelasCount, mapelCount, tagihanUnpaid, pengeluaranSum, pembayaranSum, pengumumanCount] = await Promise.all([
+    // Pengumuman filter: sekolah + role-target
+    const pengumumanWhere: Record<string, unknown> = { ...sekolahWhere };
+    const allowedTargets = allowedTargetsForRole(session.user.role);
+    if (allowedTargets) pengumumanWhere.target = { in: allowedTargets };
+
+    const [sekolahs, siswaCount, pegawaiCount, kelasCount, mapelCount, tagihanUnpaid, pengeluaranSum, pembayaranSum, pengumumanCount, recentPengumuman] = await Promise.all([
       sekolahId ? db.sekolah.findUnique({ where: { id: sekolahId } }) : db.sekolah.findFirst(),
       db.siswa.count({ where: { ...sekolahWhere, status: "Aktif" } }),
       db.pegawai.count({ where: sekolahWhere }),
@@ -28,7 +54,20 @@ export async function GET() {
       db.tagihanSiswa.count({ where: tagihanWhere }),
       db.pengeluaran.aggregate({ where: pengeluaranWhere, _sum: { nominal: true } }),
       db.pembayaran.aggregate({ where: pembayaranWhere, _sum: { jumlahBayar: true } }),
-      db.pengumuman.count({ where: sekolahWhere }),
+      db.pengumuman.count({ where: pengumumanWhere }),
+      // Top 5 most recent pengumuman (filtered by target × role)
+      db.pengumuman.findMany({
+        where: pengumumanWhere,
+        select: {
+          id: true,
+          judul: true,
+          isi: true,
+          target: true,
+          tanggalPosting: true,
+        },
+        orderBy: { tanggalPosting: "desc" },
+        take: 5,
+      }),
     ]);
 
     const saldoKas = (pembayaranSum._sum.jumlahBayar || 0) - (pengeluaranSum._sum.nominal || 0);
@@ -46,6 +85,7 @@ export async function GET() {
         totalPengeluaran: pengeluaranSum._sum.nominal || 0,
         pengumuman: pengumumanCount,
       },
+      recentPengumuman,
       user: {
         role: session.user.role,
         name: session.user.name,

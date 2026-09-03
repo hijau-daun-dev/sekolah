@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { pengeluaranSchema } from "@/lib/schemas";
 
 export async function GET() {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // GET is read-only: SUPER_ADMIN/KEUANGAN/TU may view
+    const allowedGet = ["SUPER_ADMIN", "KEUANGAN", "TU"];
+    if (!allowedGet.includes(session.user.role)) {
+      return NextResponse.json({ error: "Forbidden: tidak ada akses lihat pengeluaran" }, { status: 403 });
+    }
+
     const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
@@ -29,22 +37,36 @@ export async function POST(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // PRD Alur 4: hanya Admin Keuangan/Super Admin yang dapat mencatat pengeluaran
+    const allowedRoles = ["SUPER_ADMIN", "KEUANGAN"];
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json({ error: "Forbidden: hanya Keuangan/Super Admin yang dapat input pengeluaran" }, { status: 403 });
+    }
+
     const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
     const body = await req.json();
-    const { posAnggaranId, tanggal, nominal, keterangan, buktiNotaUrl } = body;
-
-    if (!posAnggaranId || nominal == null || !keterangan) {
-      return NextResponse.json({ error: "Field wajib: posAnggaranId, nominal, keterangan" }, { status: 400 });
+    // Zod validation (PRD §3)
+    const parsed = pengeluaranSchema.safeParse({
+      posAnggaranId: Number(body.posAnggaranId),
+      nominal: Number(body.nominal),
+      keterangan: body.keterangan,
+      buktiNotaUrl: body.buktiNotaUrl || null,
+      tanggal: body.tanggal,
+    });
+    if (!parsed.success) {
+      return NextResponse.json({
+        error: "Validasi gagal",
+        details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      }, { status: 400 });
     }
-    if (Number(nominal) <= 0) {
-      return NextResponse.json({ error: "Nominal harus > 0" }, { status: 400 });
-    }
+    const { posAnggaranId, nominal: nominalNum, keterangan, buktiNotaUrl, tanggal } = parsed.data;
 
     // Verify posAnggaran belongs to sekolah
     const pos = await db.posAnggaran.findFirst({
-      where: { id: Number(posAnggaranId), ...(sekolahId ? { sekolahId } : {}) },
+      where: { id: posAnggaranId, ...(sekolahId ? { sekolahId } : {}) },
     });
     if (!pos) return NextResponse.json({ error: "Pos anggaran tidak ditemukan" }, { status: 404 });
 
@@ -62,10 +84,10 @@ export async function POST(req: NextRequest) {
     const data = await db.pengeluaran.create({
       data: {
         pegawaiId,
-        posAnggaranId: Number(posAnggaranId),
+        posAnggaranId,
         tanggal: tanggal ? new Date(tanggal) : new Date(),
-        nominal: Number(nominal),
-        keterangan: String(keterangan).trim(),
+        nominal: nominalNum,
+        keterangan: keterangan.trim(),
         buktiNotaUrl: buktiNotaUrl || null,
       },
       include: {

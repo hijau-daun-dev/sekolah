@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { siswaSchema } from "@/lib/schemas";
 
 export async function GET() {
   try {
@@ -37,11 +38,26 @@ export async function POST(req: NextRequest) {
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
     const body = await req.json();
-    const { nis, nisn, nama, gender, tempatLahir, tanggalLahir, alamat, telepon, fotoUrl, status } = body;
-
-    if (!nama || !String(nama).trim()) {
-      return NextResponse.json({ error: "Nama siswa wajib diisi" }, { status: 400 });
+    // Zod validation (PRD §3)
+    const parsed = siswaSchema.safeParse({
+      nis: body.nis ?? null,
+      nisn: body.nisn ?? null,
+      nama: body.nama,
+      gender: body.gender ?? null,
+      tempatLahir: body.tempatLahir ?? null,
+      tanggalLahir: body.tanggalLahir ?? null,
+      alamat: body.alamat ?? null,
+      telepon: body.telepon ?? null,
+      fotoUrl: body.fotoUrl ?? null,
+      status: body.status,
+    });
+    if (!parsed.success) {
+      return NextResponse.json({
+        error: "Validasi gagal",
+        details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      }, { status: 400 });
     }
+    const { nis, nisn, nama, gender, tempatLahir, tanggalLahir, alamat, telepon, fotoUrl, status } = parsed.data;
 
     const sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
     if (!sid) return NextResponse.json({ error: "sekolahId wajib untuk super admin" }, { status: 400 });

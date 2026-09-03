@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { generateTagihanSchema } from "@/lib/schemas";
 
 const BULAN_LIST = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -34,10 +35,21 @@ export async function POST(req: NextRequest) {
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
     const body = await req.json();
-    const { tahunAjaranId, bulanTagihan, jenisPembayaranId } = body;
-    if (!tahunAjaranId || !bulanTagihan) {
-      return NextResponse.json({ error: "tahunAjaranId dan bulanTagihan wajib diisi" }, { status: 400 });
+    // Zod validation (PRD §3)
+    const parsed = generateTagihanSchema.safeParse({
+      tahunAjaranId: Number(body.tahunAjaranId),
+      bulanTagihan: body.bulanTagihan,
+      jenisPembayaranId: body.jenisPembayaranId != null ? Number(body.jenisPembayaranId) : null,
+    });
+    if (!parsed.success) {
+      return NextResponse.json({
+        error: "Validasi gagal",
+        details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      }, { status: 400 });
     }
+    const { tahunAjaranId, bulanTagihan, jenisPembayaranId } = parsed.data;
+
+    // Additional business rule: bulanTagihan must be one of BULAN_LIST
     if (!BULAN_LIST.includes(bulanTagihan)) {
       return NextResponse.json({ error: `bulanTagihan tidak valid. Pilihan: ${BULAN_LIST.join(", ")}` }, { status: 400 });
     }
@@ -46,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Get tahun ajaran
     const tahunAjaran = await db.tahunAjaran.findFirst({
-      where: { id: Number(tahunAjaranId), ...(sekolahId ? { sekolahId } : {}) },
+      where: { id: tahunAjaranId, ...(sekolahId ? { sekolahId } : {}) },
     });
     if (!tahunAjaran) return NextResponse.json({ error: "Tahun ajaran tidak ditemukan" }, { status: 404 });
 
@@ -63,7 +75,7 @@ export async function POST(req: NextRequest) {
       where: { status: "Aktif", ...(sekolahId ? { sekolahId } : {}) },
       include: {
         kelasSiswas: {
-          where: { tahunAjaranId: Number(tahunAjaranId) },
+          where: { tahunAjaranId },
           include: { kelas: { select: { id: true, nama: true, tingkatId: true } } },
           take: 1,
         },
@@ -75,9 +87,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Find all tarif for tahun ajaran (filter by jenis if provided)
-    const tarifWhere: Record<string, unknown> = { tahunAjaranId: Number(tahunAjaranId) };
+    const tarifWhere: Record<string, unknown> = { tahunAjaranId };
     if (sekolahId) tarifWhere.sekolahId = sekolahId;
-    if (jenisPembayaranId) tarifWhere.jenisPembayaranId = Number(jenisPembayaranId);
+    if (jenisPembayaranId) tarifWhere.jenisPembayaranId = jenisPembayaranId;
 
     const tarifList = await db.tarifPembayaran.findMany({
       where: tarifWhere,
@@ -133,7 +145,7 @@ export async function POST(req: NextRequest) {
         toCreate.push({
           siswaId: s.id,
           tarifPembayaranId: t.id,
-          tahunAjaranId: Number(tahunAjaranId),
+          tahunAjaranId,
           bulanTagihan,
           nominal: t.nominal,
           statusLunas: false,

@@ -28,7 +28,6 @@ export async function GET(req: NextRequest) {
       include: {
         pegawai: { select: { id: true, nama: true, jabatan: true } },
         mapel: { select: { id: true, nama: true, kode: true } },
-        kelas: { select: { id: true, nama: true } },
       },
     });
     return NextResponse.json(data);
@@ -62,7 +61,6 @@ export async function POST(req: NextRequest) {
       include: {
         pegawai: { select: { id: true, nama: true } },
         mapel: { select: { id: true, nama: true } },
-        kelas: { select: { id: true, nama: true } },
       },
     });
     return NextResponse.json(data);

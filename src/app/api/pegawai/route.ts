@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { pegawaiSchema } from "@/lib/schemas";
 
 export async function GET() {
   try {
@@ -33,14 +34,34 @@ export async function POST(req: NextRequest) {
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
     const body = await req.json();
+    // Zod validation (PRD §3)
+    const parsed = pegawaiSchema.safeParse({
+      nip: body.nip ?? null,
+      nama: body.nama,
+      gender: body.gender ?? null,
+      tempatLahir: body.tempatLahir ?? null,
+      tanggalLahir: body.tanggalLahir ?? null,
+      alamat: body.alamat ?? null,
+      telepon: body.telepon ?? null,
+      email: body.email ?? null,
+      jabatan: body.jabatan ?? null,
+      bidangStudi: body.bidangStudi ?? null,
+      fotoUrl: body.fotoUrl ?? null,
+      status: body.status,
+      orgLevel: body.orgLevel != null ? Number(body.orgLevel) : undefined,
+      orgOrder: body.orgOrder != null ? Number(body.orgOrder) : undefined,
+      parentId: body.parentId != null ? Number(body.parentId) : null,
+    });
+    if (!parsed.success) {
+      return NextResponse.json({
+        error: "Validasi gagal",
+        details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      }, { status: 400 });
+    }
     const {
       nip, nama, gender, tempatLahir, tanggalLahir, alamat, telepon, email,
       jabatan, bidangStudi, fotoUrl, status, orgLevel, orgOrder, parentId,
-    } = body;
-
-    if (!nama || !String(nama).trim()) {
-      return NextResponse.json({ error: "Nama pegawai wajib diisi" }, { status: 400 });
-    }
+    } = parsed.data;
 
     const sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
     if (!sid) return NextResponse.json({ error: "sekolahId wajib untuk super admin" }, { status: 400 });
@@ -60,9 +81,9 @@ export async function POST(req: NextRequest) {
         bidangStudi: bidangStudi || null,
         fotoUrl: fotoUrl || null,
         status: status || "Aktif",
-        orgLevel: orgLevel != null ? Number(orgLevel) : 0,
-        orgOrder: orgOrder != null ? Number(orgOrder) : 0,
-        parentId: parentId ? Number(parentId) : null,
+        orgLevel: orgLevel != null ? orgLevel : 0,
+        orgOrder: orgOrder != null ? orgOrder : 0,
+        parentId: parentId || null,
       },
       include: { parent: { select: { id: true, nama: true } }, _count: { select: { children: true } } },
     });
