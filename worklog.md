@@ -576,3 +576,39 @@ Lint Result:
 Work record: `/agent-ctx/BATCH2-UI-code-agent.md`
 
 Outcome: All 10 task items completed. 1 file created, 9 modified. Lint clean. UI ready for testing on the preview panel (sidebar with restructured groups: Utama / Master Data / Akademik / Absensi / Keuangan / Sarana / Komunikasi / Sistem).
+
+---
+Task ID: SEED-EXTENDED
+Agent: main (seed data extender)
+Task: Buat data seed tambahan yang lebih komprehensif (user request: "bantu saya buat data seed")
+
+Work Log:
+- Baca worklog.md untuk konteks: base seed (/api/seed) hanya membuat 2 siswa/sekolah + 1 kelas/sekolah, banyak tabel transaksi masih kosong (TagihanSiswa, Pembayaran, AbsensiSiswa, AbsensiPegawai, Pengeluaran, PeminjamanBarang, GaleriBerita, EkstrakurikulerSiswa = 0 rows)
+- Baca scripts/generate-dummy-nilai.js untuk pattern script standalone (PrismaClient direct, idempotent via upsert)
+- Baca prisma/schema.prisma untuk konfirmasi unique constraints: AbsensiSiswa(siswaId,tanggal), AbsensiPegawai(pegawaiId,tanggal), Pembayaran.kodeKwitansi unique, GuruMapel(pegawaiId,mapelId,tingkatId), TingkatMapel(tingkatId,mapelId), EkstrakurikulerSiswa(ekstrakurikulerId,siswaId), KelasSiswa(kelasId,siswaId), OrtuSiswa(ortuId,siswaId)
+- Buat scripts/seed-extended.js dengan 9 tahap per sekolah:
+  1. Tambah 6 pegawai baru (4 guru mapel + 1 TU + 1 keuangan) dengan NIP deterministik untuk idempotency
+  2. Generate kelas A di setiap tingkat (MI: 6 kelas, MTs: 3 kelas) dengan walikelas
+  3. Pastikan TingkatMapel & GuruMapel untuk semua tingkat (round-robin guru assignment)
+  4. Generate siswa per kelas A (MI: 18/kelas, MTs: 22/kelas) + ortu (ayah) + KelasSiswa + OrtuSiswa
+  5. Generate TagihanSiswa SPP untuk 3 bulan (Juli/Agustus/September) dengan jatuh tempo akhir bulan
+  6. Generate Pembayaran untuk 60% tagihan Juli + 40% Agustus + 15% September (dengan retry on kodeKwitansi collision)
+  7. Generate AbsensiSiswa untuk 5 hari kerja terakhir (3 kelas sample per sekolah)
+  8. Generate AbsensiPegawai untuk 5 hari kerja terakhir (semua pegawai, jamMasuk/jamPulang random 07:00-15:30)
+  9. Generate Pengeluaran (8/sekolah), PeminjamanBarang (3/sekolah mix Dipinjam/Dikembalikan), GaleriBerita (5/sekolah), EkstrakurikulerSiswa (5-10 per ekskul)
+- Bug fix #1: kwitansiCounter di-reset per sekolah → collision di MTs. Fix: pindahkan ke scope script-global + retry 3x on P2002
+- Bug fix #2: tgl.setHours() memutasikan Date di array hariKerja → collision pegawaiId_tanggal. Fix: gunakan startOfDay(tglOriginal) untuk copy fresh + buat jamMasuk/jamPulang dari komponen tgl (tidak mutasi)
+- Bug fix #3: NIP memakai existingPegawai.length+1 → tidak idempotent (tiap run bikin pegawai baru). Fix: NIP deterministik pattern `${sekolah.id}-GURU-BIN-01` etc.
+- Cleanup 18 pegawai duplikat dari 2 run sebelumnya (NIP non-deterministic)
+- Re-run script sukses: 12 pegawai baru (6 per sekolah), 36 GuruMapel, 120 TagihanSiswa, 43 Pembayaran, 600 AbsensiSiswa, 113 AbsensiPegawai, 16 Pengeluaran, 4 PeminjamanBarang, 10 GaleriBerita, 73 EkstrakurikulerSiswa
+- Re-run scripts/generate-dummy-nilai.js: 5568 Penilaian (3456 MI + 2112 MTs) untuk 174 siswa × 4 mapel × 4 komponen × 2 semester
+
+Files Created:
+- scripts/seed-extended.js (548 lines)
+
+Stage Summary:
+- DB final state: 2 sekolah, 174 siswa, 18 pegawai, 9 kelas, 174 KelasSiswa, 172 Ortu+OrtuSiswa, 36 TingkatMapel, 44 GuruMapel, 6 Ekstrakurikuler, 73 EkstrakurikulerSiswa, 120 TagihanSiswa (60 lunas/60 belum), 43 Pembayaran, 600 AbsensiSiswa, 113 AbsensiPegawai, 5568 Penilaian, 16 Pengeluaran, 4 PeminjamanBarang, 10 GaleriBerita, 2 Pengumuman, 2 RiwayatKepalaSekolah
+- Per sekolah: MI (108 siswa, 6 kelas, 54 tagihan, 19 pembayaran, 270 absensi siswa), MTs (66 siswa, 3 kelas, 66 tagihan, 24 pembayaran, 330 absensi siswa)
+- Sample kwitansi: KWT-20250903-00043, Rp250.000, Debit, siswa "Umar Syukur"
+- Script idempotent: aman dijalankan berulang (cek existing data sebelum create, upsert untuk Penilaian)
+- Untuk menjalankan ulang: `bun scripts/seed-extended.js` lalu `bun scripts/generate-dummy-nilai.js`
