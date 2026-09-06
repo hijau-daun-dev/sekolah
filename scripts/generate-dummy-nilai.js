@@ -66,6 +66,14 @@ async function generateForSekolah(sekolahId) {
   let created = 0;
   let skipped = 0;
 
+  // SCD: get first pegawai (guru) for penginput snapshot
+  const guruPegawai = await db.pegawai.findFirst({
+    where: { sekolahId, status: "Aktif" },
+    select: { id: true, nama: true },
+  });
+  const penginputPegawaiId = guruPegawai?.id ?? null;
+  const penginputNamaSnapshot = guruPegawai?.nama ?? "System";
+
   for (const siswa of siswaList) {
     // Find most recent kelas to determine tingkat
     const kelasAktif = siswa.kelasSiswas[siswa.kelasSiswas.length - 1]?.kelas;
@@ -105,6 +113,9 @@ async function generateForSekolah(sekolahId) {
                 komponenNilaiId: k.id,
                 tahunAjaranId: ta.id,
                 semesterId: sem.id,
+                // SCD Type 2: snapshot penginput
+                penginputPegawaiId,
+                penginputNamaSnapshot,
                 nilai,
                 tanggal: new Date(),
                 keterangan: "Generated oleh script dummy",

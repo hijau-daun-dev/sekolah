@@ -143,6 +143,7 @@ model Pegawai {
   pengumumans  Pengumuman[]
   ekstrakurikulers Ekstrakurikuler[]
   taKepalaSekolah TahunAjaran[] @relation("TAKepalaSekolah")
+  penilaianInputs Penilaian[] @relation("PenilaianPenginput")
   riwayatKepalaSekolah RiwayatKepalaSekolah[] @relation("RiwayatKepalaSekolahPegawai")
 }
 
@@ -448,6 +449,9 @@ model JadwalPelajaran {
   jamKe         Int
   jamMulai      String?
   jamSelesai    String?
+  // SCD Type 2: snapshot nama guru & mapel saat jadwal dibuat
+  pegawaiNamaSnapshot String?
+  mapelNamaSnapshot   String?
   statusAktif   Boolean  @default(true)
   createdAt     DateTime @default(now())
 }
@@ -477,6 +481,11 @@ model Penilaian {
   tahunAjaranId Int?
   semesterId  Int?
   semester    Semester? @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  // SCD Type 2: snapshot penginput nilai
+  // Jika guru resign/pindah, nama guru yang input tetap tercatat
+  penginputPegawaiId Int?
+  penginputPegawai   Pegawai? @relation("PenilaianPenginput", fields: [penginputPegawaiId], references: [id], onDelete: SetNull)
+  penginputNamaSnapshot String? // Nama guru saat input (snapshot, tidak berubah)
   nilai       Float
   tanggal     DateTime @default(now())
   keterangan  String?

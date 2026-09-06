@@ -124,6 +124,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Resolve semesterId for each item: body's value, else active. If still null → reject (need semester for unique key).
+    // Also resolve penginput (SCD Type 2: snapshot nama guru yang input nilai)
+    let penginputPegawaiId: number | null = null;
+    let penginputNamaSnapshot: string | null = null;
+    if (session.user.pegawaiId) {
+      penginputPegawaiId = Number(session.user.pegawaiId);
+      const pegawai = await db.pegawai.findUnique({ where: { id: penginputPegawaiId }, select: { nama: true } });
+      penginputNamaSnapshot = pegawai?.nama ?? null;
+    } else if (session.user.role === "SUPER_ADMIN" || session.user.role === "TU") {
+      // Admin/TU input — resolve pegawai from sekolah
+      if (sekolahId) {
+        const firstPegawai = await db.pegawai.findFirst({ where: { sekolahId }, select: { id: true, nama: true } });
+        if (firstPegawai) {
+          penginputPegawaiId = firstPegawai.id;
+          penginputNamaSnapshot = firstPegawai.nama;
+        }
+      }
+    }
+
     const finalItems = validated.map((item, idx) => {
       const raw = rawArr[idx];
       const tahunAjaranId = raw.tahunAjaranId != null ? Number(raw.tahunAjaranId) : null;
@@ -153,6 +171,9 @@ export async function POST(req: NextRequest) {
             komponenNilaiId: item.komponenNilaiId,
             tahunAjaranId,
             semesterId,
+            // SCD Type 2: snapshot penginput
+            penginputPegawaiId,
+            penginputNamaSnapshot,
             nilai: item.nilai,
             tanggal,
             keterangan: item.keterangan || null,
@@ -161,6 +182,9 @@ export async function POST(req: NextRequest) {
             nilai: item.nilai,
             tahunAjaranId: tahunAjaranId != null ? tahunAjaranId : undefined,
             semesterId: semesterId !== undefined ? semesterId : undefined,
+            // Update penginput snapshot on re-save (if different person edits)
+            penginputPegawaiId: penginputPegawaiId ?? undefined,
+            penginputNamaSnapshot: penginputNamaSnapshot ?? undefined,
             tanggal,
             keterangan: item.keterangan || null,
           },

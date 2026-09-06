@@ -105,6 +105,18 @@ export async function POST(req: NextRequest) {
       if (!verifiedKelasId) return NextResponse.json({ error: "Untuk tipe 'khusus': kelasId wajib" }, { status: 400 });
     }
 
+    // SCD Type 2: resolve snapshot nama guru & mapel
+    let pegawaiNamaSnapshot: string | null = null;
+    let mapelNamaSnapshot: string | null = null;
+    if (pegawaiId) {
+      const peg = await db.pegawai.findUnique({ where: { id: Number(pegawaiId) }, select: { nama: true } });
+      pegawaiNamaSnapshot = peg?.nama ?? null;
+    }
+    if (mapelId && tipe === "pelajaran") {
+      const mp = await db.mapel.findUnique({ where: { id: Number(mapelId) }, select: { nama: true } });
+      mapelNamaSnapshot = mp?.nama ?? null;
+    }
+
     const data = await db.jadwalPelajaran.create({
       data: {
         kelasId: verifiedKelasId,
@@ -114,6 +126,9 @@ export async function POST(req: NextRequest) {
         tipeJadwal: tipe,
         judulKhusus: judulKhusus || null,
         ekstrakurikulerId: tipe === "ekskul" ? Number(ekstrakurikulerId) : null,
+        // SCD Type 2: snapshot
+        pegawaiNamaSnapshot,
+        mapelNamaSnapshot,
         hari,
         jamKe: Number(jamKe),
         jamMulai: jamMulai || null,
