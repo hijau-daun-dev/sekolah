@@ -63,10 +63,13 @@ function LoginForm() {
             <div className="mt-5 pt-4 border-t border-slate-200">
               <p className="text-xs text-muted-foreground mb-2 font-medium">Akun Demo:</p>
               <div className="grid gap-1 text-[11px] text-muted-foreground/90 font-mono">
-                <div>admin@nusantarajaya.sch.id / admin123</div>
-                <div>tu@nusantarajaya.sch.id / tu123</div>
-                <div>keuangan@nusantarajaya.sch.id / keuangan123</div>
-                <div>guru@nusantarajaya.sch.id / guru123</div>
+                <div>admin@alhidayah.sch.id / admin123 <span className="text-slate-400">(Super Admin Yayasan)</span></div>
+                <div>tu@mialhidayah.sch.id / tu123 <span className="text-slate-400">(MI)</span></div>
+                <div>keuangan@mialhidayah.sch.id / keuangan123 <span className="text-slate-400">(MI)</span></div>
+                <div>guru@mialhidayah.sch.id / guru123 <span className="text-slate-400">(MI)</span></div>
+                <div>mts-tu@mtsalhidayah.sch.id / tu123 <span className="text-slate-400">(MTs)</span></div>
+                <div>mts-keuangan@mtsalhidayah.sch.id / keuangan123 <span className="text-slate-400">(MTs)</span></div>
+                <div>mts-guru@mtsalhidayah.sch.id / guru123 <span className="text-slate-400">(MTs)</span></div>
               </div>
             </div>
           </CardContent>

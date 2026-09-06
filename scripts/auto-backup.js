@@ -23,7 +23,7 @@
  */
 
 import { execSync, spawnSync } from "child_process";
-import { readFileSync, existsSync, writeFileSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, statSync } from "fs";
 import { join } from "path";
 import { Database } from "bun:sqlite";
 
@@ -120,7 +120,7 @@ function dumpDatabase() {
   db.close();
 
   writeFileSync(DUMP_PATH, sql, "utf8");
-  const size = require("fs").statSync(DUMP_PATH).size;
+  const size = statSync(DUMP_PATH).size;
   console.log(`   ✓ ${tables.length} tables, ${totalRows} rows, ${(size / 1024).toFixed(1)} KB → ${DUMP_PATH}`);
   return { tables: tables.length, rows: totalRows, size };
 }
