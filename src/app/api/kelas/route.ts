@@ -2,13 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/session";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
-    const where = sekolahId ? { sekolahId } : {};
+
+    const { searchParams } = new URL(req.url);
+    const qSekolahId = searchParams.get("sekolahId");
+    const qStatusAktif = searchParams.get("statusAktif");
+    const qTahunAjaranId = searchParams.get("tahunAjaranId");
+    const qSearch = searchParams.get("search");
+
+    const where: Record<string, unknown> = {};
+    if (sekolahId) where.sekolahId = sekolahId;
+    else if (qSekolahId) where.sekolahId = Number(qSekolahId);
+    if (qStatusAktif === "true") where.statusAktif = true;
+    else if (qStatusAktif === "false") where.statusAktif = false;
+    if (qTahunAjaranId) where.tahunAjaranId = Number(qTahunAjaranId);
+    if (qSearch) {
+      where.OR = [
+        { nama: { contains: qSearch } },
+        { tingkat: { nama: { contains: qSearch } } },
+        { jurusan: { nama: { contains: qSearch } } },
+        { walikelas: { nama: { contains: qSearch } } },
+      ];
+    }
+
     const data = await db.kelas.findMany({
       where,
       orderBy: [{ tingkat: { urutan: "asc" } }, { nama: "asc" }],
@@ -35,12 +56,12 @@ export async function POST(req: NextRequest) {
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
     const body = await req.json();
-    const { nama, tingkatId, jurusanId, tahunAjaranId, walikelasId, ruangan, kapasitas } = body;
+    const { nama, tingkatId, jurusanId, tahunAjaranId, walikelasId, ruangan, kapasitas, statusAktif } = body;
     if (!nama || !String(nama).trim()) return NextResponse.json({ error: "nama wajib" }, { status: 400 });
     if (!tingkatId) return NextResponse.json({ error: "tingkatId wajib" }, { status: 400 });
     if (!tahunAjaranId) return NextResponse.json({ error: "tahunAjaranId wajib" }, { status: 400 });
 
-    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    // Resolve sekolahId
     let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
     if (!sid) {
       const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
@@ -58,6 +79,7 @@ export async function POST(req: NextRequest) {
         walikelasId: walikelasId ? Number(walikelasId) : null,
         ruangan: ruangan || null,
         kapasitas: kapasitas != null && kapasitas !== "" ? Number(kapasitas) : null,
+        statusAktif: statusAktif !== undefined ? !!statusAktif : true,
       },
       include: {
         tingkat: { select: { id: true, nama: true } },

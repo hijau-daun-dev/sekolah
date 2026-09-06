@@ -52,7 +52,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     });
     if (!existing) return NextResponse.json({ error: "Pengumuman tidak ditemukan" }, { status: 404 });
 
-    await db.pengumuman.delete({ where: { id: Number(id) } });
+    await db.pengumuman.update({ where: { id: Number(id) }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE pengumuman error:", e);

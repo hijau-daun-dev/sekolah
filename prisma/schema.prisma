@@ -1,5 +1,5 @@
-// Prisma schema - Aplikasi Manajemen Sekolah (SD-SMP)
-// Sesuai PRD v1.0 - SQLite (dev) siap migrasi PostgreSQL
+// Prisma schema - Aplikasi Manajemen Sekolah (MI/MTs/SD/SMP)
+// v2.0 - SCD Type 2, Soft Delete, Mapel per Tingkat, Ekstrakurikuler
 // Konvensi: Int @id @default(autoincrement()), semua tabel punya sekolah_id
 
 generator client {
@@ -15,7 +15,7 @@ datasource db {
 
 model Role {
   id          Int      @id @default(autoincrement())
-  name        String   @unique // SUPER_ADMIN, TU, KEUANGAN, GURU, SISWA, ORTU
+  name        String   @unique
   label       String
   description String?
   users       User[]
@@ -26,6 +26,8 @@ model Sekolah {
   id            Int      @id @default(autoincrement())
   nama          String
   npsn          String?
+  jenjang       String   @default("SD") // SD, SMP, MI, MTs, MA, SD-SMP, MI-MTs
+  yayasan       String?
   alamat        String?
   logoUrl       String?
   telepon       String?
@@ -34,6 +36,7 @@ model Sekolah {
   kepalaSekolah String?
   nipKepala     String?
   description   String?
+  statusAktif   Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -57,12 +60,14 @@ model Sekolah {
   posAnggarans  PosAnggaran[]
   pengumumans   Pengumuman[]
   galeriBeritas GaleriBerita[]
+  ekstrakurikulers Ekstrakurikuler[]
+  riwayatKepalaSekolah RiwayatKepalaSekolah[]
 }
 
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
-  password     String // bcrypt hash
+  password     String
   name         String
   roleId       Int
   role         Role     @relation(fields: [roleId], references: [id])
@@ -92,7 +97,7 @@ model Siswa {
   alamat       String?
   telepon      String?
   fotoUrl      String?
-  status       String   @default("Aktif") // Aktif, Lulus, Pindah, Nonaktif
+  status       String   @default("Aktif")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -101,6 +106,7 @@ model Siswa {
   absensis     AbsensiSiswa[]
   penilaians   Penilaian[]
   ortuSiswas   OrtuSiswa[]
+  ekstrakurikulerSiswas EkstrakurikulerSiswa[]
 }
 
 model Pegawai {
@@ -115,10 +121,10 @@ model Pegawai {
   alamat       String?
   telepon      String?
   email        String?
-  jabatan      String? // Kepala Sekolah, Wakasek, Guru, Staf TU, etc.
+  jabatan      String?
   bidangStudi  String?
   fotoUrl      String?
-  status       String   @default("Aktif") // Aktif, Pensiun, Resign
+  status       String   @default("Aktif")
   orgLevel     Int      @default(0)
   orgOrder     Int      @default(0)
   parentId     Int?
@@ -135,6 +141,9 @@ model Pegawai {
   pembayarans  Pembayaran[]
   pengeluarans Pengeluaran[]
   pengumumans  Pengumuman[]
+  ekstrakurikulers Ekstrakurikuler[]
+  taKepalaSekolah TahunAjaran[] @relation("TAKepalaSekolah")
+  riwayatKepalaSekolah RiwayatKepalaSekolah[] @relation("RiwayatKepalaSekolahPegawai")
 }
 
 model Ortu {
@@ -148,6 +157,7 @@ model Ortu {
   alamat       String?
   pekerjaan    String?
   fotoUrl      String?
+  statusAktif  Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -160,7 +170,7 @@ model OrtuSiswa {
   ortu      Ortu  @relation(fields: [ortuId], references: [id], onDelete: Cascade)
   siswaId   Int
   siswa     Siswa @relation(fields: [siswaId], references: [id], onDelete: Cascade)
-  hubungan  String // Ayah, Ibu, Wali
+  hubungan  String
 
   @@unique([ortuId, siswaId])
 }
@@ -171,10 +181,13 @@ model TahunAjaran {
   id          Int      @id @default(autoincrement())
   sekolahId   Int
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
-  nama        String   // "2025/2026"
+  nama        String
   tanggalMulai DateTime?
   tanggalSelesai DateTime?
   statusAktif Boolean  @default(false)
+  kepalaSekolahPegawaiId Int?
+  kepalaSekolahPegawai   Pegawai? @relation("TAKepalaSekolah", fields: [kepalaSekolahPegawaiId], references: [id], onDelete: SetNull)
+  kepalaSekolahNama      String?
   createdAt   DateTime @default(now())
 
   semesters   Semester[]
@@ -190,21 +203,25 @@ model Semester {
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
   tahunAjaranId Int
   tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id], onDelete: Cascade)
-  nama        String   // "Ganjil", "Genap"
+  nama        String
   statusAktif Boolean  @default(false)
   tanggalMulai DateTime?
   tanggalSelesai DateTime?
+  penilaians  Penilaian[]
 }
 
 model Tingkat {
   id          Int      @id @default(autoincrement())
   sekolahId   Int
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
-  nama        String   // "1", "2", ... "9" untuk SD-SMP
-  jenjang     String?  // "SD", "SMP"
+  nama        String
+  jenjang     String?
   urutan      Int      @default(0)
+  statusAktif Boolean  @default(true)
   kelases     Kelas[]
   tarifPembayarans TarifPembayaran[]
+  tingkatMapels TingkatMapel[]
+  guruMapels  GuruMapel[]
 }
 
 model Jurusan {
@@ -221,7 +238,7 @@ model Kelas {
   id          Int      @id @default(autoincrement())
   sekolahId   Int
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
-  nama        String   // "6A", "6B"
+  nama        String
   tingkatId   Int
   tingkat     Tingkat  @relation(fields: [tingkatId], references: [id])
   jurusanId   Int?
@@ -232,6 +249,7 @@ model Kelas {
   walikelas   Pegawai? @relation(fields: [walikelasId], references: [id], onDelete: SetNull)
   ruangan     String?
   kapasitas   Int?
+  statusAktif Boolean  @default(true)
   createdAt   DateTime @default(now())
 
   kelasSiswas KelasSiswa[]
@@ -257,6 +275,7 @@ model KategoriMapel {
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
   nama        String
   keterangan  String?
+  statusAktif Boolean  @default(true)
   mapels      Mapel[]
 }
 
@@ -270,33 +289,53 @@ model Mapel {
   kategoriMapel KategoriMapel? @relation(fields: [kategoriMapelId], references: [id])
   jpPerMinggu Int?
   keterangan  String?
+  statusAktif Boolean  @default(true)
   createdAt   DateTime @default(now())
 
+  tingkatMapels TingkatMapel[]
   guruMapels  GuruMapel[]
   jadwals     JadwalPelajaran[]
   penilaians  Penilaian[]
+}
+
+// TingkatMapel: mapel per tingkat (bukan per kelas)
+model TingkatMapel {
+  id          Int      @id @default(autoincrement())
+  tingkatId   Int
+  tingkat     Tingkat  @relation(fields: [tingkatId], references: [id], onDelete: Restrict)
+  mapelId     Int
+  mapel       Mapel    @relation(fields: [mapelId], references: [id], onDelete: Restrict)
+  jpPerMinggu Int?
+  statusAktif Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@unique([tingkatId, mapelId])
 }
 
 model KomponenNilai {
   id          Int      @id @default(autoincrement())
   sekolahId   Int
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
-  nama        String   // UTS, UAS, Tugas, Harian
-  bobot       Float    @default(0) // 0-100
+  nama        String
+  bobot       Float    @default(0)
   keterangan  String?
+  statusAktif Boolean  @default(true)
   penilaians  Penilaian[]
 }
 
+// GuruMapel: guru mengajar mapel di tingkat tertentu
 model GuruMapel {
   id          Int      @id @default(autoincrement())
   pegawaiId   Int
-  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Cascade)
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Restrict)
   mapelId     Int
-  mapel       Mapel    @relation(fields: [mapelId], references: [id], onDelete: Cascade)
-  kelasId     Int?
+  mapel       Mapel    @relation(fields: [mapelId], references: [id], onDelete: Restrict)
+  tingkatId   Int
+  tingkat     Tingkat  @relation(fields: [tingkatId], references: [id], onDelete: Restrict)
+  statusAktif Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  @@unique([pegawaiId, mapelId, kelasId])
+  @@unique([pegawaiId, mapelId, tingkatId])
 }
 
 // ============ MASTER DATA SARANA ============
@@ -306,10 +345,11 @@ model Ruangan {
   sekolahId   Int
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
   kode        String?
-  nama        String   // "Lab Komputer", "Ruang Kelas 6A"
+  nama        String
   lokasi      String?
   kapasitas   Int?
   keterangan  String?
+  statusAktif Boolean  @default(true)
   barangs     Barang[]
 }
 
@@ -319,6 +359,7 @@ model KategoriBarang {
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
   nama        String
   keterangan  String?
+  statusAktif Boolean  @default(true)
   barangs     Barang[]
 }
 
@@ -333,11 +374,12 @@ model Barang {
   ruanganId   Int?
   ruangan     Ruangan? @relation(fields: [ruanganId], references: [id])
   jumlah      Int      @default(1)
-  kondisi     String   @default("Baik") // Baik, Rusak Ringan, Rusak Berat
-  status      String   @default("Tersedia") // Tersedia, Dipinjam
+  kondisi     String   @default("Baik")
+  status      String   @default("Tersedia")
   tanggalBeli DateTime?
   hargaBeli   Int?
   keterangan  String?
+  statusAktif Boolean  @default(true)
   createdAt   DateTime @default(now())
 
   peminjamanBarang PeminjamanBarang[]
@@ -349,8 +391,9 @@ model JenisPembayaran {
   id          Int      @id @default(autoincrement())
   sekolahId   Int
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
-  nama        String   // SPP, Uang Pangkal, Uang Kegiatan
+  nama        String
   keterangan  String?
+  statusAktif Boolean  @default(true)
   tarifPembayarans TarifPembayaran[]
 }
 
@@ -365,8 +408,9 @@ model TarifPembayaran {
   tingkatId   Int?
   tingkat     Tingkat? @relation(fields: [tingkatId], references: [id])
   nominal     Int
-  frekuensi   String   @default("Bulanan") // Bulanan, Sekali, Tahunan
+  frekuensi   String   @default("Bulanan")
   keterangan  String?
+  statusAktif Boolean  @default(true)
   createdAt   DateTime @default(now())
 
   tagihans    TagihanSiswa[]
@@ -377,39 +421,45 @@ model PosAnggaran {
   sekolahId   Int
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
   kode        String?
-  nama        String   // Belanja ATK, Gaji, Listrik
-  jenis       String   @default("Pengeluaran") // Pengeluaran, Pemasukan
+  nama        String
+  jenis       String   @default("Pengeluaran")
   keterangan  String?
+  statusAktif Boolean  @default(true)
   pengeluarans Pengeluaran[]
 }
 
 // ============ TRANSAKSI AKADEMIK ============
 
 model JadwalPelajaran {
-  id          Int      @id @default(autoincrement())
-  kelasId     Int
-  kelas       Kelas    @relation(fields: [kelasId], references: [id], onDelete: Cascade)
-  mapelId     Int
-  mapel       Mapel    @relation(fields: [mapelId], references: [id])
-  pegawaiId   Int
-  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id])
+  id            Int      @id @default(autoincrement())
+  kelasId       Int?
+  kelas         Kelas?   @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+  mapelId       Int?
+  mapel         Mapel?   @relation(fields: [mapelId], references: [id])
+  pegawaiId     Int?
+  pegawai       Pegawai? @relation(fields: [pegawaiId], references: [id])
+  ekstrakurikulerId Int?
   tahunAjaranId Int
-  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
-  hari        String   // Senin, Selasa, ...
-  jamKe       Int
-  jamMulai    String?
-  jamSelesai  String?
-  createdAt   DateTime @default(now())
+  tahunAjaran   TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  tipeJadwal    String   @default("pelajaran")
+  judulKhusus   String?
+  ekstrakurikuler Ekstrakurikuler? @relation(fields: [ekstrakurikulerId], references: [id], onDelete: SetNull)
+  hari          String
+  jamKe         Int
+  jamMulai      String?
+  jamSelesai    String?
+  statusAktif   Boolean  @default(true)
+  createdAt     DateTime @default(now())
 }
 
 model AbsensiSiswa {
   id          Int      @id @default(autoincrement())
   siswaId     Int
-  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Restrict)
   kelasId     Int?
   kelas       Kelas?   @relation(fields: [kelasId], references: [id])
   tanggal     DateTime
-  status      String   // Hadir, Sakit, Izin, Alpa
+  status      String
   keterangan  String?
   createdAt   DateTime @default(now())
 
@@ -419,27 +469,29 @@ model AbsensiSiswa {
 model Penilaian {
   id          Int      @id @default(autoincrement())
   siswaId     Int
-  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Restrict)
   mapelId     Int
   mapel       Mapel    @relation(fields: [mapelId], references: [id])
   komponenNilaiId Int
   komponenNilai KomponenNilai @relation(fields: [komponenNilaiId], references: [id])
   tahunAjaranId Int?
+  semesterId  Int?
+  semester    Semester? @relation(fields: [semesterId], references: [id], onDelete: SetNull)
   nilai       Float
   tanggal     DateTime @default(now())
   keterangan  String?
 
-  @@unique([siswaId, mapelId, komponenNilaiId])
+  @@unique([siswaId, mapelId, komponenNilaiId, semesterId])
 }
 
 model AbsensiPegawai {
   id          Int      @id @default(autoincrement())
   pegawaiId   Int
-  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Cascade)
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Restrict)
   tanggal     DateTime
   jamMasuk    DateTime?
   jamPulang   DateTime?
-  status      String   // Hadir, Sakit, Izin, Alpa, Cuti
+  status      String
   keterangan  String?
   createdAt   DateTime @default(now())
 
@@ -451,12 +503,12 @@ model AbsensiPegawai {
 model TagihanSiswa {
   id          Int      @id @default(autoincrement())
   siswaId     Int
-  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Restrict)
   tarifPembayaranId Int
   tarifPembayaran TarifPembayaran @relation(fields: [tarifPembayaranId], references: [id])
   tahunAjaranId Int
   tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
-  bulanTagihan String? // "Januari", "Februari" - null jika sekali bayar
+  bulanTagihan String?
   nominal     Int
   statusLunas Boolean  @default(false)
   tanggalJatuhTempo DateTime?
@@ -470,10 +522,10 @@ model Pembayaran {
   tagihanSiswaId Int
   tagihanSiswa TagihanSiswa @relation(fields: [tagihanSiswaId], references: [id], onDelete: Cascade)
   pegawaiId   Int
-  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id])
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Restrict)
   tanggalBayar DateTime @default(now())
   jumlahBayar Int
-  metodePembayaran String // Tunai, Transfer, Debit, QRIS
+  metodePembayaran String
   kodeKwitansi String   @unique
   keterangan  String?
   createdAt   DateTime @default(now())
@@ -482,7 +534,7 @@ model Pembayaran {
 model Pengeluaran {
   id          Int      @id @default(autoincrement())
   pegawaiId   Int
-  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id])
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Restrict)
   posAnggaranId Int
   posAnggaran PosAnggaran @relation(fields: [posAnggaranId], references: [id])
   tanggal     DateTime @default(now())
@@ -504,9 +556,43 @@ model PeminjamanBarang {
   tanggalKembaliRencana DateTime
   tanggalKembaliAktual DateTime?
   kondisiKembali String?
-  status      String   @default("Dipinjam") // Dipinjam, Dikembalikan
+  status      String   @default("Dipinjam")
   keterangan  String?
   createdAt   DateTime @default(now())
+}
+
+// ============ EKSTRAKURIKULER ============
+
+model Ekstrakurikuler {
+  id          Int      @id @default(autoincrement())
+  sekolahId   Int
+  sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
+  nama        String
+  deskripsi   String?
+  pembinaId   Int?
+  pembina     Pegawai? @relation(fields: [pembinaId], references: [id], onDelete: SetNull)
+  hari        String?
+  jamMulai    String?
+  jamSelesai  String?
+  tempat      String?
+  statusAktif Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pesertas     EkstrakurikulerSiswa[]
+  jadwals      JadwalPelajaran[]
+}
+
+model EkstrakurikulerSiswa {
+  id                Int              @id @default(autoincrement())
+  ekstrakurikulerId Int
+  ekstrakurikuler   Ekstrakurikuler  @relation(fields: [ekstrakurikulerId], references: [id], onDelete: Cascade)
+  siswaId           Int
+  siswa             Siswa            @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  status            String           @default("Aktif")
+  createdAt         DateTime         @default(now())
+
+  @@unique([ekstrakurikulerId, siswaId])
 }
 
 // ============ TRANSAKSI KOMUNIKASI ============
@@ -516,10 +602,11 @@ model Pengumuman {
   sekolahId   Int
   sekolah     Sekolah  @relation(fields: [sekolahId], references: [id])
   pegawaiId   Int
-  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id])
+  pegawai     Pegawai  @relation(fields: [pegawaiId], references: [id], onDelete: Restrict)
   judul       String
   isi         String
-  target      String   @default("Semua") // Semua, Siswa, Ortu, Guru
+  target      String   @default("Semua")
+  statusAktif Boolean  @default(true)
   tanggalPosting DateTime @default(now())
   createdAt   DateTime @default(now())
 }
@@ -531,7 +618,25 @@ model GaleriBerita {
   judul       String
   konten      String
   gambarUrl   String?
-  kategori    String?  // Berita, Galeri, Pengumuman
+  kategori    String?
+  statusAktif Boolean  @default(true)
   tanggalPosting DateTime @default(now())
   createdAt   DateTime @default(now())
+}
+
+// ============ RIWAYAT KEPALA SEKOLAH (SCD Type 2) ============
+
+model RiwayatKepalaSekolah {
+  id            Int      @id @default(autoincrement())
+  sekolahId     Int
+  sekolah       Sekolah  @relation(fields: [sekolahId], references: [id], onDelete: Cascade)
+  pegawaiId     Int
+  pegawai       Pegawai  @relation("RiwayatKepalaSekolahPegawai", fields: [pegawaiId], references: [id], onDelete: Restrict)
+  namaSnapshot  String
+  nipSnapshot   String?
+  tanggalMulai  DateTime
+  tanggalSelesai DateTime?
+  status        String   @default("Aktif")
+  keterangan    String?
+  createdAt     DateTime @default(now())
 }

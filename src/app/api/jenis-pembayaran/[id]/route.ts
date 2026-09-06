@@ -48,7 +48,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const cnt = await db.tarifPembayaran.count({ where: { jenisPembayaranId: jid } });
     if (cnt > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${cnt} tarif` }, { status: 400 });
 
-    await db.jenisPembayaran.delete({ where: { id: jid } });
+    await db.jenisPembayaran.update({ where: { id: jid }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE jenis-pembayaran/[id] error:", e);

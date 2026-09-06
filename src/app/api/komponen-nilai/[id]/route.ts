@@ -57,7 +57,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const cnt = await db.penilaian.count({ where: { komponenNilaiId: kid } });
     if (cnt > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${cnt} penilaian` }, { status: 400 });
 
-    await db.komponenNilai.delete({ where: { id: kid } });
+    // Soft delete
+    await db.komponenNilai.update({ where: { id: kid }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE komponen-nilai/[id] error:", e);

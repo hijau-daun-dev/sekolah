@@ -47,7 +47,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
     const body = await req.json();
-    const { nama, nik, telepon, email, alamat, pekerjaan, fotoUrl } = body;
+    const { nama, nik, telepon, email, alamat, pekerjaan, fotoUrl, statusAktif } = body;
 
     const data = await db.ortu.update({
       where: { id: ortuId },
@@ -59,6 +59,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         alamat: alamat ?? null,
         pekerjaan: pekerjaan ?? null,
         fotoUrl: fotoUrl ?? null,
+        statusAktif: statusAktif !== undefined ? !!statusAktif : undefined,
       },
       include: { anakAnak: { include: { siswa: { select: { id: true, nama: true } } } } },
     });
@@ -81,7 +82,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const owned = await checkOwnership(ortuId, sekolahId);
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-    await db.ortu.delete({ where: { id: ortuId } });
+    // Soft delete
+    await db.ortu.update({ where: { id: ortuId }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE ortu/[id] error:", e);

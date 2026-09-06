@@ -3,14 +3,20 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/session";
 import { siswaSchema } from "@/lib/schemas";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
-    const where = sekolahId ? { sekolahId } : {};
+    const { searchParams } = new URL(req.url);
+    const qSekolahId = searchParams.get("sekolahId");
+    const qStatus = searchParams.get("status");
+    const where: Record<string, unknown> = {};
+    if (sekolahId) where.sekolahId = sekolahId;
+    else if (qSekolahId) where.sekolahId = Number(qSekolahId);
+    if (qStatus) where.status = qStatus;
     const data = await db.siswa.findMany({
       where,
       orderBy: [{ nama: "asc" }],

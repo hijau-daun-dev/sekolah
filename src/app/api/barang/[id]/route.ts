@@ -80,7 +80,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const owned = await checkOwnership(bid, sekolahId);
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-    await db.barang.delete({ where: { id: bid } });
+    await db.barang.update({ where: { id: bid }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE barang/[id] error:", e);

@@ -1,0 +1,766 @@
+===== src/app/api/ruangan/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const where = sekolahId ? { sekolahId } : {};
+    const data = await db.ruangan.findMany({
+      where,
+      orderBy: [{ nama: "asc" }],
+      include: { _count: { select: { barangs: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("GET ruangan error:", e);
+    return NextResponse.json({ error: "Gagal memuat" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+
+    const body = await req.json();
+    const { kode, nama, lokasi, kapasitas, keterangan } = body;
+    if (!nama || !String(nama).trim()) return NextResponse.json({ error: "nama wajib" }, { status: 400 });
+
+    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+    if (!sid) {
+      const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+      if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+      sid = firstSekolah.id;
+    }
+
+    const data = await db.ruangan.create({
+      data: {
+        sekolahId: sid,
+        kode: kode || null,
+        nama: String(nama).trim(),
+        lokasi: lokasi || null,
+        kapasitas: kapasitas != null && kapasitas !== "" ? Number(kapasitas) : null,
+        keterangan: keterangan || null,
+      },
+      include: { _count: { select: { barangs: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("POST ruangan error:", e);
+    return NextResponse.json({ error: "Gagal menambah" }, { status: 500 });
+  }
+}
+===== src/app/api/ruangan/[id]/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+async function checkOwnership(id: number, sekolahId?: number) {
+  const r = await db.ruangan.findUnique({ where: { id }, select: { sekolahId: true } });
+  if (!r) return null;
+  if (sekolahId && r.sekolahId !== sekolahId) return null;
+  return r;
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const rid = Number(id);
+    const owned = await checkOwnership(rid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const body = await req.json();
+    const { kode, nama, lokasi, kapasitas, keterangan } = body;
+    const data = await db.ruangan.update({
+      where: { id: rid },
+      data: {
+        kode: kode ?? null,
+        nama: nama ? String(nama).trim() : undefined,
+        lokasi: lokasi ?? null,
+        kapasitas: kapasitas === "" || kapasitas == null ? null : Number(kapasitas),
+        keterangan: keterangan ?? null,
+      },
+      include: { _count: { select: { barangs: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("PUT ruangan/[id] error:", e);
+    return NextResponse.json({ error: "Gagal mengupdate" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const rid = Number(id);
+    const owned = await checkOwnership(rid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    await db.ruangan.delete({ where: { id: rid } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("DELETE ruangan/[id] error:", e);
+    return NextResponse.json({ error: "Gagal menghapus" }, { status: 500 });
+  }
+}
+===== src/app/api/kategori-barang/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const where = sekolahId ? { sekolahId } : {};
+    const data = await db.kategoriBarang.findMany({
+      where,
+      orderBy: { nama: "asc" },
+      include: { _count: { select: { barangs: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("GET kategori-barang error:", e);
+    return NextResponse.json({ error: "Gagal memuat" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+
+    const body = await req.json();
+    const { nama, keterangan } = body;
+    if (!nama || !String(nama).trim()) return NextResponse.json({ error: "nama wajib" }, { status: 400 });
+
+    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+    if (!sid) {
+      const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+      if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+      sid = firstSekolah.id;
+    }
+
+    const data = await db.kategoriBarang.create({
+      data: { sekolahId: sid, nama: String(nama).trim(), keterangan: keterangan || null },
+      include: { _count: { select: { barangs: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("POST kategori-barang error:", e);
+    return NextResponse.json({ error: "Gagal menambah" }, { status: 500 });
+  }
+}
+===== src/app/api/kategori-barang/[id]/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+async function checkOwnership(id: number, sekolahId?: number) {
+  const r = await db.kategoriBarang.findUnique({ where: { id }, select: { sekolahId: true } });
+  if (!r) return null;
+  if (sekolahId && r.sekolahId !== sekolahId) return null;
+  return r;
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const kid = Number(id);
+    const owned = await checkOwnership(kid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const body = await req.json();
+    const { nama, keterangan } = body;
+    const data = await db.kategoriBarang.update({
+      where: { id: kid },
+      data: { nama: nama ? String(nama).trim() : undefined, keterangan: keterangan ?? null },
+      include: { _count: { select: { barangs: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("PUT kategori-barang/[id] error:", e);
+    return NextResponse.json({ error: "Gagal mengupdate" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const kid = Number(id);
+    const owned = await checkOwnership(kid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    await db.kategoriBarang.delete({ where: { id: kid } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("DELETE kategori-barang/[id] error:", e);
+    return NextResponse.json({ error: "Gagal menghapus" }, { status: 500 });
+  }
+}
+===== src/app/api/barang/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const where = sekolahId ? { sekolahId } : {};
+    const data = await db.barang.findMany({
+      where,
+      orderBy: [{ nama: "asc" }],
+      include: {
+        kategoriBarang: { select: { id: true, nama: true } },
+        ruangan: { select: { id: true, nama: true } },
+      },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("GET barang error:", e);
+    return NextResponse.json({ error: "Gagal memuat barang" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+
+    const body = await req.json();
+    const { kode, nama, kategoriBarangId, ruanganId, jumlah, kondisi, status, tanggalBeli, hargaBeli, keterangan } = body;
+    if (!nama || !String(nama).trim()) return NextResponse.json({ error: "nama wajib" }, { status: 400 });
+
+    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+    if (!sid) {
+      const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+      if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+      sid = firstSekolah.id;
+    }
+
+    const data = await db.barang.create({
+      data: {
+        sekolahId: sid,
+        kode: kode || null,
+        nama: String(nama).trim(),
+        kategoriBarangId: kategoriBarangId ? Number(kategoriBarangId) : null,
+        ruanganId: ruanganId ? Number(ruanganId) : null,
+        jumlah: jumlah != null && jumlah !== "" ? Number(jumlah) : 1,
+        kondisi: kondisi || "Baik",
+        status: status || "Tersedia",
+        tanggalBeli: tanggalBeli ? new Date(tanggalBeli) : null,
+        hargaBeli: hargaBeli != null && hargaBeli !== "" ? Number(hargaBeli) : null,
+        keterangan: keterangan || null,
+      },
+      include: {
+        kategoriBarang: { select: { id: true, nama: true } },
+        ruangan: { select: { id: true, nama: true } },
+      },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("POST barang error:", e);
+    return NextResponse.json({ error: "Gagal menambah barang" }, { status: 500 });
+  }
+}
+===== src/app/api/barang/[id]/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+async function checkOwnership(id: number, sekolahId?: number) {
+  const r = await db.barang.findUnique({ where: { id }, select: { sekolahId: true } });
+  if (!r) return null;
+  if (sekolahId && r.sekolahId !== sekolahId) return null;
+  return r;
+}
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const bid = Number(id);
+    const owned = await checkOwnership(bid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+    const data = await db.barang.findUnique({
+      where: { id: bid },
+      include: { kategoriBarang: { select: { id: true, nama: true } }, ruangan: { select: { id: true, nama: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("GET barang/[id] error:", e);
+    return NextResponse.json({ error: "Gagal memuat" }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const bid = Number(id);
+    const owned = await checkOwnership(bid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const body = await req.json();
+    const { kode, nama, kategoriBarangId, ruanganId, jumlah, kondisi, status, tanggalBeli, hargaBeli, keterangan } = body;
+    const data = await db.barang.update({
+      where: { id: bid },
+      data: {
+        kode: kode ?? null,
+        nama: nama ? String(nama).trim() : undefined,
+        kategoriBarangId: kategoriBarangId === "" || kategoriBarangId == null ? null : Number(kategoriBarangId),
+        ruanganId: ruanganId === "" || ruanganId == null ? null : Number(ruanganId),
+        jumlah: jumlah != null && jumlah !== "" ? Number(jumlah) : undefined,
+        kondisi: kondisi ?? undefined,
+        status: status ?? undefined,
+        tanggalBeli: tanggalBeli ? new Date(tanggalBeli) : tanggalBeli === "" ? null : undefined,
+        hargaBeli: hargaBeli === "" || hargaBeli == null ? null : Number(hargaBeli),
+        keterangan: keterangan ?? null,
+      },
+      include: {
+        kategoriBarang: { select: { id: true, nama: true } },
+        ruangan: { select: { id: true, nama: true } },
+      },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("PUT barang/[id] error:", e);
+    return NextResponse.json({ error: "Gagal mengupdate" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const bid = Number(id);
+    const owned = await checkOwnership(bid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    await db.barang.delete({ where: { id: bid } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("DELETE barang/[id] error:", e);
+    return NextResponse.json({ error: "Gagal menghapus" }, { status: 500 });
+  }
+}
+===== src/app/api/jenis-pembayaran/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const where = sekolahId ? { sekolahId } : {};
+    const data = await db.jenisPembayaran.findMany({
+      where,
+      orderBy: { nama: "asc" },
+      include: { _count: { select: { tarifPembayarans: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("GET jenis-pembayaran error:", e);
+    return NextResponse.json({ error: "Gagal memuat" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+
+    const body = await req.json();
+    const { nama, keterangan } = body;
+    if (!nama || !String(nama).trim()) return NextResponse.json({ error: "nama wajib" }, { status: 400 });
+
+    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+    if (!sid) {
+      const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+      if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+      sid = firstSekolah.id;
+    }
+
+    const data = await db.jenisPembayaran.create({
+      data: { sekolahId: sid, nama: String(nama).trim(), keterangan: keterangan || null },
+      include: { _count: { select: { tarifPembayarans: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("POST jenis-pembayaran error:", e);
+    return NextResponse.json({ error: "Gagal menambah" }, { status: 500 });
+  }
+}
+===== src/app/api/jenis-pembayaran/[id]/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+async function checkOwnership(id: number, sekolahId?: number) {
+  const r = await db.jenisPembayaran.findUnique({ where: { id }, select: { sekolahId: true } });
+  if (!r) return null;
+  if (sekolahId && r.sekolahId !== sekolahId) return null;
+  return r;
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const jid = Number(id);
+    const owned = await checkOwnership(jid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const body = await req.json();
+    const { nama, keterangan } = body;
+    const data = await db.jenisPembayaran.update({
+      where: { id: jid },
+      data: { nama: nama ? String(nama).trim() : undefined, keterangan: keterangan ?? null },
+      include: { _count: { select: { tarifPembayarans: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("PUT jenis-pembayaran/[id] error:", e);
+    return NextResponse.json({ error: "Gagal mengupdate" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const jid = Number(id);
+    const owned = await checkOwnership(jid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const cnt = await db.tarifPembayaran.count({ where: { jenisPembayaranId: jid } });
+    if (cnt > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${cnt} tarif` }, { status: 400 });
+
+    await db.jenisPembayaran.delete({ where: { id: jid } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("DELETE jenis-pembayaran/[id] error:", e);
+    return NextResponse.json({ error: "Gagal menghapus" }, { status: 500 });
+  }
+}
+===== src/app/api/tarif-pembayaran/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const where = sekolahId ? { sekolahId } : {};
+    const data = await db.tarifPembayaran.findMany({
+      where,
+      orderBy: [{ tahunAjaran: { nama: "desc" } }, { jenisPembayaran: { nama: "asc" } }],
+      include: {
+        jenisPembayaran: { select: { id: true, nama: true } },
+        tahunAjaran: { select: { id: true, nama: true } },
+        tingkat: { select: { id: true, nama: true } },
+      },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("GET tarif-pembayaran error:", e);
+    return NextResponse.json({ error: "Gagal memuat" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+
+    const body = await req.json();
+    const { jenisPembayaranId, tahunAjaranId, tingkatId, nominal, frekuensi, keterangan } = body;
+    if (!jenisPembayaranId || !tahunAjaranId) return NextResponse.json({ error: "jenisPembayaranId & tahunAjaranId wajib" }, { status: 400 });
+    const n = Number(nominal);
+    if (Number.isNaN(n) || n < 0) return NextResponse.json({ error: "nominal tidak valid" }, { status: 400 });
+
+    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+    if (!sid) {
+      const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+      if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+      sid = firstSekolah.id;
+    }
+
+    const data = await db.tarifPembayaran.create({
+      data: {
+        sekolahId: sid,
+        jenisPembayaranId: Number(jenisPembayaranId),
+        tahunAjaranId: Number(tahunAjaranId),
+        tingkatId: tingkatId ? Number(tingkatId) : null,
+        nominal: n,
+        frekuensi: frekuensi || "Bulanan",
+        keterangan: keterangan || null,
+      },
+      include: {
+        jenisPembayaran: { select: { id: true, nama: true } },
+        tahunAjaran: { select: { id: true, nama: true } },
+        tingkat: { select: { id: true, nama: true } },
+      },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("POST tarif-pembayaran error:", e);
+    return NextResponse.json({ error: "Gagal menambah tarif" }, { status: 500 });
+  }
+}
+===== src/app/api/tarif-pembayaran/[id]/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+async function checkOwnership(id: number, sekolahId?: number) {
+  const r = await db.tarifPembayaran.findUnique({ where: { id }, select: { sekolahId: true } });
+  if (!r) return null;
+  if (sekolahId && r.sekolahId !== sekolahId) return null;
+  return r;
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const tid = Number(id);
+    const owned = await checkOwnership(tid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const body = await req.json();
+    const { jenisPembayaranId, tahunAjaranId, tingkatId, nominal, frekuensi, keterangan } = body;
+    const n = nominal != null && nominal !== "" ? Number(nominal) : undefined;
+    if (n !== undefined && (Number.isNaN(n) || n < 0)) return NextResponse.json({ error: "nominal tidak valid" }, { status: 400 });
+
+    const data = await db.tarifPembayaran.update({
+      where: { id: tid },
+      data: {
+        jenisPembayaranId: jenisPembayaranId ? Number(jenisPembayaranId) : undefined,
+        tahunAjaranId: tahunAjaranId ? Number(tahunAjaranId) : undefined,
+        tingkatId: tingkatId === "" || tingkatId == null ? null : Number(tingkatId),
+        nominal: n,
+        frekuensi: frekuensi ?? undefined,
+        keterangan: keterangan ?? null,
+      },
+      include: {
+        jenisPembayaran: { select: { id: true, nama: true } },
+        tahunAjaran: { select: { id: true, nama: true } },
+        tingkat: { select: { id: true, nama: true } },
+      },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("PUT tarif-pembayaran/[id] error:", e);
+    return NextResponse.json({ error: "Gagal mengupdate" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const tid = Number(id);
+    const owned = await checkOwnership(tid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const cnt = await db.tagihanSiswa.count({ where: { tarifPembayaranId: tid } });
+    if (cnt > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${cnt} tagihan` }, { status: 400 });
+
+    await db.tarifPembayaran.delete({ where: { id: tid } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("DELETE tarif-pembayaran/[id] error:", e);
+    return NextResponse.json({ error: "Gagal menghapus" }, { status: 500 });
+  }
+}
+===== src/app/api/pos-anggaran/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const where = sekolahId ? { sekolahId } : {};
+    const data = await db.posAnggaran.findMany({
+      where,
+      orderBy: [{ jenis: "asc" }, { nama: "asc" }],
+      include: { _count: { select: { pengeluarans: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("GET pos-anggaran error:", e);
+    return NextResponse.json({ error: "Gagal memuat" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+
+    const body = await req.json();
+    const { kode, nama, jenis, keterangan } = body;
+    if (!nama || !String(nama).trim()) return NextResponse.json({ error: "nama wajib" }, { status: 400 });
+
+    // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+    let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+    if (!sid) {
+      const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+      if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+      sid = firstSekolah.id;
+    }
+
+    const data = await db.posAnggaran.create({
+      data: {
+        sekolahId: sid,
+        kode: kode || null,
+        nama: String(nama).trim(),
+        jenis: jenis || "Pengeluaran",
+        keterangan: keterangan || null,
+      },
+      include: { _count: { select: { pengeluarans: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("POST pos-anggaran error:", e);
+    return NextResponse.json({ error: "Gagal menambah" }, { status: 500 });
+  }
+}
+===== src/app/api/pos-anggaran/[id]/route.ts =====
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { auth } from "@/lib/session";
+
+async function checkOwnership(id: number, sekolahId?: number) {
+  const r = await db.posAnggaran.findUnique({ where: { id }, select: { sekolahId: true } });
+  if (!r) return null;
+  if (sekolahId && r.sekolahId !== sekolahId) return null;
+  return r;
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const pid = Number(id);
+    const owned = await checkOwnership(pid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const body = await req.json();
+    const { kode, nama, jenis, keterangan } = body;
+    const data = await db.posAnggaran.update({
+      where: { id: pid },
+      data: {
+        kode: kode ?? null,
+        nama: nama ? String(nama).trim() : undefined,
+        jenis: jenis ?? undefined,
+        keterangan: keterangan ?? null,
+      },
+      include: { _count: { select: { pengeluarans: true } } },
+    });
+    return NextResponse.json(data);
+  } catch (e) {
+    console.error("PUT pos-anggaran/[id] error:", e);
+    return NextResponse.json({ error: "Gagal mengupdate" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
+    if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
+    const { id } = await params;
+    const pid = Number(id);
+    const owned = await checkOwnership(pid, sekolahId);
+    if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+
+    const cnt = await db.pengeluaran.count({ where: { posAnggaranId: pid } });
+    if (cnt > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${cnt} pengeluaran` }, { status: 400 });
+
+    await db.posAnggaran.delete({ where: { id: pid } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("DELETE pos-anggaran/[id] error:", e);
+    return NextResponse.json({ error: "Gagal menghapus" }, { status: 500 });
+  }
+}

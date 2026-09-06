@@ -51,7 +51,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const owned = await checkOwnership(rid, sekolahId);
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-    await db.ruangan.delete({ where: { id: rid } });
+    await db.ruangan.update({ where: { id: rid }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE ruangan/[id] error:", e);

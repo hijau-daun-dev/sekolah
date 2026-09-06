@@ -485,3 +485,94 @@ Side Effects / Notes:
 - Work record: `/agent-ctx/FIX-3-SEKOLAH-code-agent.md`
 
 Outcome: BUG #6 (Super Admin blocked from creating data) — FIXED. Semua 16 endpoint master data sekarang gracefully fallback ke sekolah pertama kalau Super Admin tidak specify `sekolahId` di session/body. Lint bersih, smoke test pass untuk 2 endpoint sample (tahun-ajaran + kategori-mapel), test data sudah di-cleanup.
+
+## Task ID: BATCH1-API-SEED
+Agent: code-agent (Batch 1 API re-implementation: TingkatMapel/GuruMapel/Ekstrakurikuler/RiwayatKepalaSekolah/Jadwal tipe/Penilaian semester + seed MI+MTs Al-Hidayah)
+Task: Implement 28 missing APIs (routes for tingkat-mapel, ekstrakurikuler, jadwal options/export, penilaian rekap/export, riwayat-kepala-sekolah, ortu/check-nik, sekolah/list) + UPDATE master DELETE→soft delete + GET→statusAktif filter + UPDATE guru-mapel/jadwal/penilaian/sekolah/tingkat/tahun-ajaran routes + REWRITE seed route (MI Al-Hidayah + MTs Al-Hidayah) + CREATE scripts/generate-dummy-nilai.js.
+
+### Work Log
+- Read worklog.md (full history AUDIT-1, FIX-1, FIX-2-ZOD, FIX-3-SEKOLAH) + schema.prisma (37 models, v2.0 with TingkatMapel/GuruMapel/Ekstrakurikuler/RiwayatKepalaSekolah SCD Type 2/JadwalPelajaran with tipeJadwal/Penilaian with semesterId).
+- Read src/lib/db.ts, session.ts, auth-helpers.ts — confirmed `import { db } from "@/lib/db"` + `import { auth } from "@/lib/session"` + getAllowedSiswaIds/getCurrentSekolahId/getCurrentPegawaiId helpers.
+- Audited all 28 target files; verified pre-existing state of each (most already partially/fully implemented per prior tasks).
+- Identified deltas needed:
+  - tingkat.ts → add JENJANG_OPTIONS constant
+  - riwayat-kepala-sekolah POST → auto-close old + sekolah-list GET → _count + ortu/check-nik → anakAnak + kelas GET → search filter + pengumuman/galeri/semester GET → statusAktif filter + pengumuman/galeri/tahun-ajaran/semester DELETE → soft delete + jadwal/options → exact spec shape + seed route → full rewrite for MI+MTs + scripts/generate-dummy-nilai.js → new
+
+### Files Modified (12)
+1. **src/lib/tingkat.ts** — added `JENJANG_OPTIONS` constant (7 entries: SD/MI/SMP/MTs/MA/SD-SMP/MI-MTs).
+2. **src/app/api/riwayat-kepala-sekolah/route.ts** — GET: `?sekolahId=` filter. POST: auto-close previous `status="Aktif"` (set `status="Selesai"` + `tanggalSelesai=newMulai`) before inserting new record. Auto-sync `sekolah.kepalaSekolah + nipKepala` preserved.
+3. **src/app/api/riwayat-kepala-sekolah/[id]/route.ts** — DELETE: blocks if `status="Aktif"` (400 with message). Hard-delete preserved for non-active (riwayat = audit log).
+4. **src/app/api/ortu/check-nik/route.ts** — response now `{ found, exists (alias), ortu (full fields), anakAnak: [{id,nama,nis,nisn,status,hubungan}] }`.
+5. **src/app/api/sekolah/list/route.ts** — GET includes `_count` (siswas, pegawais, users, kelases, tahunAjarans, mapels) for both SUPER_ADMIN and non-super branches.
+6. **src/app/api/kelas/route.ts** — GET: added `?search=` filter (OR on nama/tingkat.nama/jurusan.nama/walikelas.nama).
+7. **src/app/api/pengumuman/route.ts** — GET: signature → `GET(req)`, added `?statusAktif=` + `?sekolahId=` filters. Preserves `target×role` filter from FIX-1.
+8. **src/app/api/pengumuman/[id]/route.ts** — DELETE → soft delete (`statusAktif: false`).
+9. **src/app/api/galeri/route.ts** — GET: signature → `GET(req)`, added `?statusAktif=`, `?sekolahId=`, `?kategori=` filters.
+10. **src/app/api/galeri/[id]/route.ts** — DELETE → soft delete.
+11. **src/app/api/semester/route.ts** — GET: added `?statusAktif=` + `?tahunAjaranId=` filters.
+12. **src/app/api/semester/[id]/route.ts** — DELETE → soft delete (blocks if Penilaian references it).
+13. **src/app/api/tahun-ajaran/[id]/route.ts** — DELETE → soft delete (keeps existing block-if-has-semester-or-kelas check).
+14. **src/app/api/jadwal/options/route.ts** — response shape: `{ kelas, tingkat, availableMapels, availableGurusByMapel (Record<mapelId, Pegawai[]>), availableEkskul, allPegawai (bonus) }`.
+
+### Files Rewritten (1)
+15. **src/app/api/seed/route.ts** — Complete rewrite. Creates: 6 roles + 2 sekolah (MI Al-Hidayah jenjang=MI + MTs Al-Hidayah jenjang=MTs, same yayasan) + super admin user. For each sekolah via `seedSekolah()` helper: autoGenerateTingkat (6 for MI, 3 for MTs), TahunAjaran 2025/2026 (statusAktif=true, tanggalMulai/selesai), 2 Semesters (Ganjil aktif + Genap non-aktif, both with tanggalMulai/selesai), KategoriMapel + 4 Mapels, 4 KomponenNilai, 3 Pegawai (Kepala/Wakasek/Guru), 1 RiwayatKepalaSekolah (status="Aktif"), TingkatMapel (4 mapels × tingkat akhir), GuruMapel (with tingkatId not kelasId), 3 Ekstrakurikuler (Pramuka/Tahfidz/Drumband), 1 Kelas, 2 Siswa + KelasSiswa, 1 Ortu + link, 3 Jadwal (pelajaran + ekskul + khusus "Upacara Bendera"), Master Sarana (1 ruangan/kategori/barang), Master Keuangan (1 jenis/tarif + 4 pos anggaran), 1 Pengumuman, 3 demo users (tu/keuangan/guru) per sekolah.
+
+### Files Created (1)
+16. **scripts/generate-dummy-nilai.js** — Bun/Node script (CommonJS with eslint-disable for require). For each sekolah: finds active TA + both semesters, loads KomponenNilai + Siswa status="Aktif" with kelasSiswas, resolves each siswa's tingkat via most-recent kelas, loads TingkatMapel at that tingkat, then upserts Penilaian for every (semester × tingkatMapel × komponenNilai) with random nilai 60-95. Uses semesterId (required for `@@unique([siswaId, mapelId, komponenNilaiId, semesterId])`).
+
+### Files Verified Pre-existing (no changes needed — 14 routes)
+- tingkat-mapel route + [id], tingkat/auto-generate, ekstrakurikuler route + [id] + [id]/siswa, jadwal route + export, penilaian route + rekap-kelas + rekap-siswa + export, guru-mapel route + [id], sekolah route, tingkat route, tahun-ajaran route + [id], all other master [id] routes (mapel, komponen-nilai, kategori-mapel, tingkat, ortu, jenis-pembayaran, tarif-pembayaran, pos-anggaran, ruangan, kategori-barang, barang, jadwal, ekstrakurikuler, kelas) — already had soft delete + statusAktif filter per prior tasks (FIX-1/FIX-2-ZOD/FIX-3-SEKOLAH + master-data code-agent).
+
+### Lint Result
+- `bun run lint` → exit 0, 0 errors, 0 warnings.
+
+### E2E Verification (bun -e smoke tests, no test code committed)
+1. **autoGenerateTingkat(MI)** → created 6 tingkat (1-6, jenjang="MI") ✓
+2. **autoGenerateTingkat(MTs)** → created 3 tingkat (7-9, jenjang="MTs") ✓
+3. **riwayat-kepala-sekolah auto-close**: created first Aktif riwayat, then created second → first auto-closed (status=Selesai, tanggalSelesai set to second's tanggalMulai), second remains Aktif ✓
+4. **block-if-active DELETE**: identified active riwayat id correctly (would be blocked) ✓
+5. **generate-dummy-nilai.js**: created 4 Penilaian records (1 siswa × 1 mapel × 2 komponen × 2 semesters), each with correct semesterId (1 for Ganjil, 2 for Genap), tahunAjaranId set, nilai in 60-95 range ✓
+6. All test data cleaned up after verification; DB now empty (all 18 tables 0 rows).
+
+### Side Effects / Notes
+- The OLD seed route had a bug: it inserted GuruMapel with `kelasId` (column no longer exists in v2.0 schema — uses `tingkatId`). New seed uses correct `tingkatId`. DB currently empty (schema reset+pushed per task context), so user needs to run `POST /api/seed` (auto-triggered on /login mount) then `bun scripts/generate-dummy-nilai.js` for dummy nilai.
+- `ortu/check-nik` returns both `found` (new, spec-compliant) and `exists` (legacy alias) for backward compat.
+- `jadwal/options` keeps `allPegawai` as bonus field (used by frontend jadwal-section for khusus/ekskul pembina picker); 4 spec-required fields all present.
+- `riwayat-kepala-sekolah/[id]` DELETE is intentionally hard-delete for non-active records (riwayat is SCD audit log; soft-delete would corrupt history). Only "Aktif" is blocked per spec.
+- Demo credentials after fresh seed:
+  - admin@alhidayah.sch.id / admin123 (SUPER_ADMIN, linked to MI)
+  - tu@mialhidayah.sch.id / tu123, keuangan@mialhidayah.sch.id / keuangan123, guru@mialhidayah.sch.id / guru123 (MI)
+  - mts-tu@mtsalhidayah.sch.id / tu123, mts-keuangan@mtsalhidayah.sch.id / keuangan123, mts-guru@mtsalhidayah.sch.id / guru123 (MTs)
+- Work record: `/agent-ctx/BATCH1-API-SEED-code-agent.md`
+
+Outcome: All 28 task items completed. 12 files modified, 1 rewritten (seed), 1 created (dummy-nilai script), 14 verified pre-existing. Lint clean (0 errors). E2E smoke tests pass for autoGenerateTingkat (MI/MTs), riwayat auto-close SCD logic, and generate-dummy-nilai.js (creates Penilaian with semesterId for both semesters).
+
+## Task ID: BATCH2-UI
+Agent: code-agent (BATCH2-UI)
+Task: Update 10 UI components for master akademik refactor (Tingkat/Kelas/Mapel-per-Tingkat/GuruMapel-by-tingkat), jadwal multi-tipe, penilaian cascade filter, sekolah jenjang+yayasan+riwayat kepala sekolah, rekap nilai, ekskul, ortu statusAktif badge, and page.tsx menu restructure.
+
+Work Log:
+- Read worklog.md and existing components in `/src/components/_common/`
+- Verified all required APIs exist: `/api/tingkat-mapel`, `/api/riwayat-kepala-sekolah`, `/api/penilaian/{rekap-kelas,rekap-siswa,export}`, `/api/jadwal/export`
+- Verified schema: `TingkatMapel` (tingkatId+mapelId), `GuruMapel` (pegawaiId+mapelId+tingkatId), `RiwayatKepalaSekolah` (SCD Type 2), `JadwalPelajaran` (tipeJadwal, judulKhusus, ekstrakurikulerId)
+
+Files Created (1):
+- `/src/components/_common/rekap-nilai-section.tsx` — Per kelas/siswa rekap with cascade filters + PDF/Excel export
+
+Files Modified (9):
+- `tingkat-section.tsx` — Reordered columns (No/Nama/Jenjang/Urutan/Jml Kelas/Jml Mapel/Status/Aksi) + jenjang color badges (MI=emerald, MTs=blue, SD/SMP=slate)
+- `kelas-section.tsx` — Added No + Ruangan columns; statusAktif toggle → Switch
+- `ekstrakurikuler-section.tsx` — Added No + Tempat columns; statusAktif toggle → Switch
+- `akademik-section.tsx` — Removed TingkatTab; renamed tab "Tingkat & Jurusan" → "Jurusan"; added new "Mapel per Tingkat" tab (TingkatMapelTab); GuruMapelTab rewritten to use tingkatId (was kelasId) with edit capability + statusAktif badge/toggle; KomponenNilai statusAktif badge + Switch; sekolah filter at top; all sub-tabs accept sekolahId prop
+- `jadwal-section.tsx` — Full rewrite. tipeJadwal radio (Pelajaran/Ekskul/Khusus) with conditional form; Export dialog (per kelas/tingkat + PDF/CSV); Tipe column with badge + filter
+- `penilaian-section.tsx` — Full rewrite with cascade filter (Sekolah/Jenjang→Tingkat→Kelas→Mapel→Komponen→Semester); auto-detect semester by current date; GURU restricted to GuruMapel; semesterId+tahunAjaranId in POST payload
+- `sekolah-section.tsx` — Full rewrite. Added jenjang dropdown + yayasan field; new RiwayatKepalaSekolahCard (table with No/Nama/NIP/Periode/Status/Aksi, add/edit/delete); super admin sekolah switcher if multiple
+- `ortu-section.tsx` — Added statusAktif to interface + empty record; statusAktif badge in card; Switch in dialog
+- `page.tsx` — Added 4 menu items (Master Tingkat, Master Kelas, Rekap Nilai, Ekstrakurikuler); separated "Absensi" group (moved Absensi Siswa + Absensi Pegawai out of Akademik); imported 4 icons + 4 components; new Tab types + titleMap entries
+
+Lint Result:
+- `bun run lint` → exit code 0 (0 errors, 0 warnings)
+
+Work record: `/agent-ctx/BATCH2-UI-code-agent.md`
+
+Outcome: All 10 task items completed. 1 file created, 9 modified. Lint clean. UI ready for testing on the preview panel (sidebar with restructured groups: Utama / Master Data / Akademik / Absensi / Keuangan / Sarana / Komunikasi / Sistem).

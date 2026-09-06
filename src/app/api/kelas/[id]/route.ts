@@ -45,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
     const body = await req.json();
-    const { nama, tingkatId, jurusanId, tahunAjaranId, walikelasId, ruangan, kapasitas } = body;
+    const { nama, tingkatId, jurusanId, tahunAjaranId, walikelasId, ruangan, kapasitas, statusAktif } = body;
     const data = await db.kelas.update({
       where: { id: kid },
       data: {
@@ -56,6 +56,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         walikelasId: walikelasId === "" || walikelasId == null ? null : Number(walikelasId),
         ruangan: ruangan ?? null,
         kapasitas: kapasitas === "" || kapasitas == null ? null : Number(kapasitas),
+        statusAktif: statusAktif !== undefined ? !!statusAktif : undefined,
       },
       include: {
         tingkat: { select: { id: true, nama: true } },
@@ -83,10 +84,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const owned = await checkOwnership(kid, sekolahId);
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-    const cnt = await db.kelasSiswa.count({ where: { kelasId: kid } });
-    if (cnt > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih memiliki ${cnt} siswa` }, { status: 400 });
-
-    await db.kelas.delete({ where: { id: kid } });
+    // Soft delete
+    await db.kelas.update({ where: { id: kid }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE kelas/[id] error:", e);

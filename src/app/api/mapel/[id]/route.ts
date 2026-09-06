@@ -54,7 +54,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const cntJ = await db.jadwalPelajaran.count({ where: { mapelId: mid } });
     if (cntJ > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${cntJ} jadwal` }, { status: 400 });
 
-    await db.mapel.delete({ where: { id: mid } });
+    // Soft delete
+    await db.mapel.update({ where: { id: mid }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE mapel/[id] error:", e);

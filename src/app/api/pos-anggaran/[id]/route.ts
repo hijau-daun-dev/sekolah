@@ -53,7 +53,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const cnt = await db.pengeluaran.count({ where: { posAnggaranId: pid } });
     if (cnt > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${cnt} pengeluaran` }, { status: 400 });
 
-    await db.posAnggaran.delete({ where: { id: pid } });
+    await db.posAnggaran.update({ where: { id: pid }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE pos-anggaran/[id] error:", e);

@@ -20,7 +20,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
     const data = await db.tahunAjaran.findUnique({
       where: { id: Number(id) },
-      include: { semesters: true, _count: { select: { kelases: true } } },
+      include: {
+        semesters: true,
+        kepalaSekolahPegawai: { select: { id: true, nama: true, jabatan: true, nip: true } },
+        _count: { select: { kelases: true } },
+      },
     });
     return NextResponse.json(data);
   } catch (e) {
@@ -41,8 +45,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
     const body = await req.json();
-    const { nama, tanggalMulai, tanggalSelesai, statusAktif } = body;
+    const { nama, tanggalMulai, tanggalSelesai, statusAktif, kepalaSekolahPegawaiId, kepalaSekolahNama } = body;
     const isActive = statusAktif === true || statusAktif === "true";
+
+    if (kepalaSekolahPegawaiId) {
+      const pegawai = await db.pegawai.findUnique({ where: { id: Number(kepalaSekolahPegawaiId) }, select: { sekolahId: true } });
+      if (!pegawai) return NextResponse.json({ error: "Pegawai tidak ditemukan" }, { status: 404 });
+      if (sekolahId && pegawai.sekolahId !== sekolahId) return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
+    }
 
     const updated = await db.$transaction(async (tx) => {
       if (isActive) {
@@ -55,8 +65,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           tanggalMulai: tanggalMulai ? new Date(tanggalMulai) : tanggalMulai === "" ? null : undefined,
           tanggalSelesai: tanggalSelesai ? new Date(tanggalSelesai) : tanggalSelesai === "" ? null : undefined,
           statusAktif: typeof statusAktif === "boolean" ? isActive : undefined,
+          kepalaSekolahPegawaiId: kepalaSekolahPegawaiId === undefined ? undefined : (kepalaSekolahPegawaiId ? Number(kepalaSekolahPegawaiId) : null),
+          kepalaSekolahNama: kepalaSekolahNama === undefined ? undefined : (kepalaSekolahNama || null),
         },
-        include: { _count: { select: { semesters: true, kelases: true } } },
+        include: {
+          _count: { select: { semesters: true, kelases: true } },
+          kepalaSekolahPegawai: { select: { id: true, nama: true, jabatan: true, nip: true } },
+        },
       });
     });
     return NextResponse.json(updated);
@@ -83,7 +98,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: `Tidak dapat dihapus: masih memiliki ${countS} semester & ${countK} kelas` }, { status: 400 });
     }
 
-    await db.tahunAjaran.delete({ where: { id: taId } });
+    // Soft delete
+    await db.tahunAjaran.update({ where: { id: taId }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE tahun-ajaran/[id] error:", e);

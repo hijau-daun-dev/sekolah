@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { BookOpen, CalendarDays, Layers, DoorOpen, GraduationCap, Award, Users, Loader2, X, Plus, Pencil, Trash2, ArrowUpRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BookOpen, CalendarDays, Layers, DoorOpen, GraduationCap, Award, Users, Loader2, X, Plus, Pencil, Trash2, ArrowUpRight, Filter } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -45,15 +46,21 @@ interface Mapel {
   kategoriMapel?: { id: number; nama: string } | null;
   _count?: { guruMapels: number; jadwals: number };
 }
-interface KomponenNilai { id: number; nama: string; bobot: number; keterangan?: string | null; _count?: { penilaians: number }; }
+interface KomponenNilai { id: number; nama: string; bobot: number; keterangan?: string | null; statusAktif: boolean; _count?: { penilaians: number }; }
 interface GuruMapel {
-  id: number; pegawaiId: number; mapelId: number; kelasId?: number | null;
+  id: number; pegawaiId: number; mapelId: number; tingkatId: number; statusAktif: boolean;
   pegawai?: { id: number; nama: string; jabatan?: string | null };
   mapel?: { id: number; nama: string; kode?: string | null };
-  kelas?: { id: number; nama: string } | null;
+  tingkat?: { id: number; nama: string; jenjang?: string | null; urutan?: number };
 }
 interface PegawaiMini { id: number; nama: string; jabatan?: string | null; }
 interface SiswaMini { id: number; nama: string; nis?: string | null; status?: string | null; }
+interface SekolahOpt { id: number; nama: string; jenjang?: string | null }
+interface TingkatMapel {
+  id: number; tingkatId: number; mapelId: number; jpPerMinggu?: number | null; statusAktif: boolean;
+  tingkat?: { id: number; nama: string; jenjang?: string | null; urutan: number };
+  mapel?: { id: number; nama: string; kode?: string | null; kategoriMapel?: { nama: string } | null };
+}
 interface KelasSiswa {
   id: number; kelasId: number; siswaId: number; tahunAjaranId: number;
   kelas?: { id: number; nama: string; tingkat?: { nama: string } | null; tahunAjaran?: { nama: string } | null };
@@ -61,42 +68,73 @@ interface KelasSiswa {
 }
 
 export function AkademikSection() {
-  return (
-    <Tabs defaultValue="ta" className="w-full">
-      <TabsList className="flex w-full overflow-x-auto h-auto p-1 bg-slate-100">
-        <TabsTrigger value="ta" className="text-xs"><CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Tahun Ajaran & Semester</TabsTrigger>
-        <TabsTrigger value="tingkat" className="text-xs"><Layers className="h-3.5 w-3.5 mr-1.5" /> Tingkat & Jurusan</TabsTrigger>
-        <TabsTrigger value="kelas" className="text-xs"><DoorOpen className="h-3.5 w-3.5 mr-1.5" /> Kelas & Siswa</TabsTrigger>
-        <TabsTrigger value="mapel" className="text-xs"><BookOpen className="h-3.5 w-3.5 mr-1.5" /> Mata Pelajaran</TabsTrigger>
-        <TabsTrigger value="nilai" className="text-xs"><Award className="h-3.5 w-3.5 mr-1.5" /> Komponen Nilai & Guru Mapel</TabsTrigger>
-      </TabsList>
+  const [sekolahList, setSekolahList] = useState<SekolahOpt[]>([]);
+  const [sekolahId, setSekolahId] = useState<string>("");
 
-      <TabsContent value="ta" className="space-y-4 mt-4">
-        <GenerateKelasCard />
-        <TahunAjaranTab />
-        <SemesterTab />
-      </TabsContent>
-      <TabsContent value="tingkat" className="space-y-4 mt-4">
-        <TingkatTab />
-        <JurusanTab />
-      </TabsContent>
-      <TabsContent value="kelas" className="space-y-4 mt-4">
-        <KelasTab />
-      </TabsContent>
-      <TabsContent value="mapel" className="space-y-4 mt-4">
-        <KategoriMapelTab />
-        <MapelTab />
-      </TabsContent>
-      <TabsContent value="nilai" className="space-y-4 mt-4">
-        <KomponenNilaiTab />
-        <GuruMapelTab />
-      </TabsContent>
-    </Tabs>
+  useEffect(() => {
+    fetch("/api/sekolah/list").then((r) => r.json()).then((d: SekolahOpt[]) => {
+      if (Array.isArray(d)) {
+        setSekolahList(d);
+        if (d.length > 0 && !sekolahId) setSekolahId(String(d[0].id));
+      }
+    }).catch(() => {});
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      {sekolahList.length > 1 && (
+        <Card className="border-slate-200">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Filter className="h-4 w-4 text-slate-500" />
+            <Label className="text-xs whitespace-nowrap">Sekolah</Label>
+            <Select value={sekolahId} onValueChange={setSekolahId}>
+              <SelectTrigger className="w-full sm:w-72 h-8"><SelectValue placeholder="Pilih sekolah" /></SelectTrigger>
+              <SelectContent>
+                {sekolahList.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.nama}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      )}
+      <Tabs defaultValue="ta" className="w-full">
+        <TabsList className="flex w-full overflow-x-auto h-auto p-1 bg-slate-100">
+          <TabsTrigger value="ta" className="text-xs"><CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Tahun Ajaran & Semester</TabsTrigger>
+          <TabsTrigger value="jurusan" className="text-xs"><GraduationCap className="h-3.5 w-3.5 mr-1.5" /> Jurusan</TabsTrigger>
+          <TabsTrigger value="kelas" className="text-xs"><DoorOpen className="h-3.5 w-3.5 mr-1.5" /> Kelas & Siswa</TabsTrigger>
+          <TabsTrigger value="mapel" className="text-xs"><BookOpen className="h-3.5 w-3.5 mr-1.5" /> Mata Pelajaran</TabsTrigger>
+          <TabsTrigger value="tingkat-mapel" className="text-xs"><Layers className="h-3.5 w-3.5 mr-1.5" /> Mapel per Tingkat</TabsTrigger>
+          <TabsTrigger value="nilai" className="text-xs"><Award className="h-3.5 w-3.5 mr-1.5" /> Komponen Nilai & Guru Mapel</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ta" className="space-y-4 mt-4">
+          <GenerateKelasCard sekolahId={sekolahId} />
+          <TahunAjaranTab sekolahId={sekolahId} />
+          <SemesterTab sekolahId={sekolahId} />
+        </TabsContent>
+        <TabsContent value="jurusan" className="space-y-4 mt-4">
+          <JurusanTab sekolahId={sekolahId} />
+        </TabsContent>
+        <TabsContent value="kelas" className="space-y-4 mt-4">
+          <KelasTab sekolahId={sekolahId} />
+        </TabsContent>
+        <TabsContent value="mapel" className="space-y-4 mt-4">
+          <KategoriMapelTab sekolahId={sekolahId} />
+          <MapelTab sekolahId={sekolahId} />
+        </TabsContent>
+        <TabsContent value="tingkat-mapel" className="space-y-4 mt-4">
+          <TingkatMapelTab sekolahId={sekolahId} />
+        </TabsContent>
+        <TabsContent value="nilai" className="space-y-4 mt-4">
+          <KomponenNilaiTab sekolahId={sekolahId} />
+          <GuruMapelTab sekolahId={sekolahId} />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
 
 // ============ Generate Kelas (Kenaikan) ============
-function GenerateKelasCard() {
+function GenerateKelasCard({ sekolahId }: { sekolahId: string }) {
   const [taList, setTaList] = useState<TahunAjaran[]>([]);
   const [open, setOpen] = useState(false);
   const [lamaId, setLamaId] = useState<number | null>(null);
@@ -106,13 +144,14 @@ function GenerateKelasCard() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetch("/api/tahun-ajaran")
+    const url = sekolahId ? `/api/tahun-ajaran?sekolahId=${sekolahId}` : "/api/tahun-ajaran";
+    fetch(url)
       .then((r) => r.json())
       .then((d: TahunAjaran[]) => {
         if (Array.isArray(d)) setTaList(d);
       })
       .catch(() => { /* ignore */ });
-  }, []);
+  }, [sekolahId]);
 
   const handleOpen = () => {
     setResult(null);
@@ -251,7 +290,8 @@ function GenerateKelasCard() {
 }
 
 // ============ Tahun Ajaran ============
-function TahunAjaranTab() {
+function TahunAjaranTab({ sekolahId }: { sekolahId: string }) {
+  const fetchUrl = sekolahId ? `/api/tahun-ajaran?sekolahId=${sekolahId}` : "/api/tahun-ajaran";
   const columns: ColumnDef<TahunAjaran>[] = [
     { key: "nama", header: "Nama", cell: (r) => (
       <div className="flex items-center gap-2">
@@ -275,25 +315,28 @@ function TahunAjaranTab() {
     <CrudTable<TahunAjaran>
       title="Tahun Ajaran"
       description="Periode tahun ajaran sekolah"
-      fetchUrl="/api/tahun-ajaran"
+      fetchUrl={fetchUrl}
       columns={columns}
       fields={fields}
       emptyRecord={{ nama: "", tanggalMulai: "", tanggalSelesai: "", statusAktif: false }}
       searchKeys={["nama"]}
       searchPlaceholder="Cari tahun ajaran..."
+      formatPayload={(rec) => ({ ...rec, sekolahId: sekolahId ? Number(sekolahId) : undefined })}
     />
   );
 }
 
 // ============ Semester ============
-function SemesterTab() {
+function SemesterTab({ sekolahId }: { sekolahId: string }) {
   const [taList, setTaList] = useState<{ value: string; label: string }[]>([]);
   useEffect(() => {
-    fetch("/api/tahun-ajaran").then((r) => r.json()).then((d: TahunAjaran[]) => {
+    const url = sekolahId ? `/api/tahun-ajaran?sekolahId=${sekolahId}` : "/api/tahun-ajaran";
+    fetch(url).then((r) => r.json()).then((d: TahunAjaran[]) => {
       if (Array.isArray(d)) setTaList(d.map((t) => ({ value: String(t.id), label: t.nama + (t.statusAktif ? " (Aktif)" : "") })));
     });
-  }, []);
+  }, [sekolahId]);
 
+  const fetchUrl = sekolahId ? `/api/semester?sekolahId=${sekolahId}` : "/api/semester";
   const columns: ColumnDef<Semester>[] = [
     { key: "nama", header: "Semester", cell: (r) => (
       <div className="flex items-center gap-2">
@@ -316,7 +359,7 @@ function SemesterTab() {
     <CrudTable<Semester>
       title="Semester"
       description="Semester per tahun ajaran"
-      fetchUrl="/api/semester"
+      fetchUrl={fetchUrl}
       columns={columns}
       fields={fields}
       emptyRecord={{ tahunAjaranId: "", nama: "", statusAktif: false, tanggalMulai: "", tanggalSelesai: "" }}
@@ -326,34 +369,9 @@ function SemesterTab() {
   );
 }
 
-// ============ Tingkat ============
-function TingkatTab() {
-  const columns: ColumnDef<Tingkat>[] = [
-    { key: "urutan", header: "Urutan", cell: (r) => <span className="text-slate-600">{r.urutan}</span> },
-    { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
-    { key: "jenjang", header: "Jenjang", cell: (r) => r.jenjang ? <Badge variant="outline" className="text-[10px]">{r.jenjang}</Badge> : "-" },
-  ];
-  const fields: FieldDef[] = [
-    { key: "nama", label: "Nama (cth: 1, 2, ..., 9)", type: "text", required: true },
-    { key: "jenjang", label: "Jenjang", type: "select", options: [{ value: "SD", label: "SD" }, { value: "SMP", label: "SMP" }] },
-    { key: "urutan", label: "Urutan", type: "number" },
-  ];
-  return (
-    <CrudTable<Tingkat>
-      title="Tingkat"
-      description="Tingkat kelas (1-9 untuk SD-SMP)"
-      fetchUrl="/api/tingkat"
-      columns={columns}
-      fields={fields}
-      emptyRecord={{ nama: "", jenjang: "", urutan: 0 }}
-      searchKeys={["nama"]}
-      searchPlaceholder="Cari tingkat..."
-    />
-  );
-}
-
 // ============ Jurusan ============
-function JurusanTab() {
+function JurusanTab({ sekolahId }: { sekolahId: string }) {
+  const fetchUrl = sekolahId ? `/api/jurusan?sekolahId=${sekolahId}` : "/api/jurusan";
   const columns: ColumnDef<Jurusan>[] = [
     { key: "kode", header: "Kode", cell: (r) => <Badge variant="outline" className="text-[10px]">{r.kode}</Badge> },
     { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
@@ -369,18 +387,248 @@ function JurusanTab() {
     <CrudTable<Jurusan>
       title="Jurusan"
       description="Jurusan (untuk SMP)"
-      fetchUrl="/api/jurusan"
+      fetchUrl={fetchUrl}
       columns={columns}
       fields={fields}
       emptyRecord={{ kode: "", nama: "", keterangan: "" }}
       searchKeys={["nama", "kode"]}
       searchPlaceholder="Cari jurusan..."
+      formatPayload={(rec) => ({ ...rec, sekolahId: sekolahId ? Number(sekolahId) : undefined })}
     />
   );
 }
 
+// ============ Mapel per Tingkat (TingkatMapel) ============
+function TingkatMapelTab({ sekolahId }: { sekolahId: string }) {
+  const [tingkatList, setTingkatList] = useState<{ value: string; label: string }[]>([]);
+  const [mapelList, setMapelList] = useState<{ value: string; label: string }[]>([]);
+  const [tingkatId, setTingkatId] = useState<string>("");
+  const [list, setList] = useState<TingkatMapel[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState<{ mapelId: string; jpPerMinggu: string }>({ mapelId: "", jpPerMinggu: "" });
+  const [saving, setSaving] = useState(false);
+  const [delTarget, setDelTarget] = useState<TingkatMapel | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!sekolahId) return;
+    const sid = Number(sekolahId);
+    Promise.all([
+      fetch(`/api/tingkat?sekolahId=${sid}&statusAktif=true`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/mapel?sekolahId=${sid}`).then((r) => r.json()).catch(() => []),
+    ]).then(([t, m]: [Tingkat[], Mapel[]]) => {
+      if (Array.isArray(t)) {
+        const opts = t.map((x) => ({ value: String(x.id), label: `${x.nama}${x.jenjang ? ` (${x.jenjang})` : ""}` }));
+        setTingkatList(opts);
+        if (opts.length > 0 && !tingkatId) setTingkatId(opts[0].value);
+      }
+      if (Array.isArray(m)) setMapelList(m.map((x) => ({ value: String(x.id), label: x.nama + (x.kode ? ` [${x.kode}]` : "") })));
+    });
+  }, [sekolahId]);
+
+  const load = useCallback(async () => {
+    if (!tingkatId) return;
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/tingkat-mapel?tingkatId=${tingkatId}`);
+      const d = await r.json();
+      if (Array.isArray(d)) setList(d);
+    } catch {
+      toast({ title: "Gagal memuat data", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [tingkatId, toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const availableMapel = useMemo(() => {
+    const linked = new Set(list.filter((x) => x.statusAktif).map((x) => x.mapelId));
+    return mapelList.filter((m) => !linked.has(Number(m.value)));
+  }, [list, mapelList]);
+
+  const handleAdd = async () => {
+    if (!tingkatId || !form.mapelId) {
+      toast({ title: "Pilih mapel", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const r = await fetch("/api/tingkat-mapel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tingkatId: Number(tingkatId),
+          mapelId: Number(form.mapelId),
+          jpPerMinggu: form.jpPerMinggu || null,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Gagal menambah");
+      toast({ title: "Mapel ditambahkan ke tingkat" });
+      setDialogOpen(false);
+      setForm({ mapelId: "", jpPerMinggu: "" });
+      await load();
+    } catch (e) {
+      toast({ title: "Gagal menambah", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggle = async (tm: TingkatMapel) => {
+    try {
+      const r = await fetch(`/api/tingkat-mapel/${tm.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusAktif: !tm.statusAktif }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Gagal update");
+      toast({ title: tm.statusAktif ? "Dinonaktifkan" : "Diaktifkan" });
+      await load();
+    } catch (e) {
+      toast({ title: "Gagal", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!delTarget) return;
+    try {
+      const r = await fetch(`/api/tingkat-mapel/${delTarget.id}`, { method: "DELETE" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Gagal menghapus");
+      toast({ title: "Mapel dihapus dari tingkat" });
+      setDelTarget(null);
+      await load();
+    } catch (e) {
+      toast({ title: "Gagal menghapus", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Card className="border-slate-200">
+      <CardContent className="p-4 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+              <Layers className="h-4 w-4" /> Mapel per Tingkat
+            </h3>
+            <p className="text-xs text-slate-500">Pilih tingkat, lalu tambahkan mapel yang diajarkan</p>
+          </div>
+          <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!tingkatId} className="bg-slate-700 hover:bg-slate-800">
+            <Plus className="h-4 w-4 mr-1" /> Tambah Mapel
+          </Button>
+        </div>
+        <div className="w-full sm:w-72">
+          <Label className="text-xs">Tingkat</Label>
+          <Select value={tingkatId} onValueChange={setTingkatId}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Pilih tingkat" /></SelectTrigger>
+            <SelectContent>
+              {tingkatList.length === 0 ? (
+                <SelectItem value="_none" disabled>Belum ada tingkat</SelectItem>
+              ) : tingkatList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {!tingkatId ? (
+          <div className="text-center py-8 text-slate-500"><p className="text-sm">Pilih tingkat untuk melihat daftar mapel.</p></div>
+        ) : loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-500" /></div>
+        ) : list.length === 0 ? (
+          <div className="text-center py-8 text-slate-500"><p className="text-sm">Belum ada mapel pada tingkat ini.</p></div>
+        ) : (
+          <div className="border border-slate-200 rounded-lg overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">Mapel</th>
+                  <th className="text-left px-3 py-2 font-medium">Kategori</th>
+                  <th className="text-left px-3 py-2 font-medium">JP/Minggu</th>
+                  <th className="text-left px-3 py-2 font-medium">Status</th>
+                  <th className="text-right px-3 py-2 font-medium w-28">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {list.map((tm) => (
+                  <tr key={tm.id} className="hover:bg-slate-50/60">
+                    <td className="px-3 py-2 font-medium text-slate-800">
+                      {tm.mapel?.nama || "-"}
+                      {tm.mapel?.kode && <span className="ml-1 text-[10px] text-slate-500">[{tm.mapel.kode}]</span>}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">{tm.mapel?.kategoriMapel?.nama || "-"}</td>
+                    <td className="px-3 py-2 text-slate-600">{tm.jpPerMinggu ?? "-"}</td>
+                    <td className="px-3 py-2">
+                      <button onClick={() => handleToggle(tm)} title="Toggle status">
+                        {tm.statusAktif
+                          ? <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Aktif</Badge>
+                          : <Badge className="bg-slate-200 text-slate-600 text-[10px]">Nonaktif</Badge>}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600 hover:bg-rose-50" onClick={() => setDelTarget(tm)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tambah Mapel ke Tingkat</DialogTitle>
+            <DialogDescription>Pilih mapel untuk ditambahkan ke tingkat {tingkatList.find((t) => t.value === tingkatId)?.label || ""}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-sm">Mapel *</Label>
+              <Select value={form.mapelId} onValueChange={(v) => setForm((p) => ({ ...p, mapelId: v }))}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih mapel" /></SelectTrigger>
+                <SelectContent>
+                  {availableMapel.length === 0 ? (
+                    <SelectItem value="_none" disabled>Semua mapel sudah ditambahkan</SelectItem>
+                  ) : availableMapel.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm">JP per Minggu (opsional)</Label>
+              <Input type="number" min={1} value={form.jpPerMinggu} onChange={(e) => setForm((p) => ({ ...p, jpPerMinggu: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
+            <Button onClick={handleAdd} disabled={saving} className="bg-slate-700 hover:bg-slate-800">
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hapus mapel dari tingkat?</DialogTitle>
+            <DialogDescription>Mapel <b>{delTarget?.mapel?.nama}</b> akan dihapus dari tingkat ini (soft delete).</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDelTarget(null)}>Batal</Button>
+            <Button onClick={handleDelete} className="bg-rose-600 hover:bg-rose-700">Hapus</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
 // ============ Kelas (with kelas-siswa management) ============
-function KelasTab() {
+function KelasTab({ sekolahId }: { sekolahId: string }) {
   const [tingkatList, setTingkatList] = useState<{ value: string; label: string }[]>([]);
   const [jurusanList, setJurusanList] = useState<{ value: string; label: string }[]>([]);
   const [taList, setTaList] = useState<{ value: string; label: string }[]>([]);
@@ -398,7 +646,8 @@ function KelasTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/kelas");
+      const url = sekolahId ? `/api/kelas?sekolahId=${sekolahId}` : "/api/kelas";
+      const r = await fetch(url);
       const d = await r.json();
       if (Array.isArray(d)) setList(d);
     } catch {
@@ -406,22 +655,24 @@ function KelasTab() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [sekolahId, toast]);
 
   useEffect(() => {
     load();
+    if (!sekolahId) return;
+    const sid = sekolahId;
     Promise.all([
-      fetch("/api/tingkat").then((r) => r.json()),
-      fetch("/api/jurusan").then((r) => r.json()),
-      fetch("/api/tahun-ajaran").then((r) => r.json()),
-      fetch("/api/pegawai").then((r) => r.json()),
+      fetch(`/api/tingkat?sekolahId=${sid}`).then((r) => r.json()),
+      fetch(`/api/jurusan?sekolahId=${sid}`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/tahun-ajaran?sekolahId=${sid}`).then((r) => r.json()),
+      fetch(`/api/pegawai?sekolahId=${sid}`).then((r) => r.json()),
     ]).then(([t, j, ta, pg]: [Tingkat[], Jurusan[], TahunAjaran[], PegawaiMini[]]) => {
       if (Array.isArray(t)) setTingkatList(t.map((x) => ({ value: String(x.id), label: `${x.nama}${x.jenjang ? ` (${x.jenjang})` : ""}` })));
       if (Array.isArray(j)) setJurusanList(j.map((x) => ({ value: String(x.id), label: `${x.kode} - ${x.nama}` })));
       if (Array.isArray(ta)) setTaList(ta.map((x) => ({ value: String(x.id), label: x.nama + (x.statusAktif ? " (Aktif)" : "") })));
       if (Array.isArray(pg)) setPegawaiList(pg.map((x) => ({ value: String(x.id), label: x.nama + (x.jabatan ? ` (${x.jabatan})` : "") })));
     });
-  }, [load]);
+  }, [load, sekolahId]);
 
   const filtered = list.filter((k) => {
     if (!search) return true;
@@ -443,9 +694,11 @@ function KelasTab() {
     if (!editing.tahunAjaranId) { toast({ title: "Tahun ajaran wajib", variant: "destructive" }); return; }
     setSaving(true);
     try {
+      const payload: Record<string, unknown> = { ...editing };
+      if (sekolahId) payload.sekolahId = Number(sekolahId);
       const url = editing.id ? `/api/kelas/${editing.id}` : "/api/kelas";
       const method = editing.id ? "PUT" : "POST";
-      const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(editing) });
+      const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Gagal menyimpan");
       toast({ title: editing.id ? "Kelas diperbarui" : "Kelas ditambahkan" });
@@ -754,7 +1007,8 @@ function KelasSiswaManager({ kelas }: { kelas: Kelas }) {
 }
 
 // ============ Kategori Mapel ============
-function KategoriMapelTab() {
+function KategoriMapelTab({ sekolahId }: { sekolahId: string }) {
+  const fetchUrl = sekolahId ? `/api/kategori-mapel?sekolahId=${sekolahId}` : "/api/kategori-mapel";
   const columns: ColumnDef<KategoriMapel>[] = [
     { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
     { key: "keterangan", header: "Keterangan", cell: (r) => <span className="text-xs text-slate-600">{r.keterangan || "-"}</span> },
@@ -768,24 +1022,27 @@ function KategoriMapelTab() {
     <CrudTable<KategoriMapel>
       title="Kategori Mata Pelajaran"
       description="Pengelompokan mapel (Umum, Agama, Mulok)"
-      fetchUrl="/api/kategori-mapel"
+      fetchUrl={fetchUrl}
       columns={columns}
       fields={fields}
       emptyRecord={{ nama: "", keterangan: "" }}
       searchKeys={["nama"]}
       searchPlaceholder="Cari kategori..."
+      formatPayload={(rec) => ({ ...rec, sekolahId: sekolahId ? Number(sekolahId) : undefined })}
     />
   );
 }
 
 // ============ Mapel ============
-function MapelTab() {
+function MapelTab({ sekolahId }: { sekolahId: string }) {
   const [katList, setKatList] = useState<{ value: string; label: string }[]>([]);
   useEffect(() => {
-    fetch("/api/kategori-mapel").then((r) => r.json()).then((d: KategoriMapel[]) => {
+    const url = sekolahId ? `/api/kategori-mapel?sekolahId=${sekolahId}` : "/api/kategori-mapel";
+    fetch(url).then((r) => r.json()).then((d: KategoriMapel[]) => {
       if (Array.isArray(d)) setKatList(d.map((k) => ({ value: String(k.id), label: k.nama })));
     });
-  }, []);
+  }, [sekolahId]);
+  const fetchUrl = sekolahId ? `/api/mapel?sekolahId=${sekolahId}` : "/api/mapel";
   const columns: ColumnDef<Mapel>[] = [
     { key: "kode", header: "Kode", cell: (r) => r.kode ? <Badge variant="outline" className="text-[10px]">{r.kode}</Badge> : "-" },
     { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
@@ -803,37 +1060,45 @@ function MapelTab() {
     <CrudTable<Mapel>
       title="Mata Pelajaran"
       description="Daftar mapel & jam pelajaran"
-      fetchUrl="/api/mapel"
+      fetchUrl={fetchUrl}
       columns={columns}
       fields={fields}
       emptyRecord={{ kode: "", nama: "", kategoriMapelId: "", jpPerMinggu: "", keterangan: "" }}
       searchKeys={["nama", "kode"]}
       searchPlaceholder="Cari mapel..."
+      formatPayload={(rec) => ({ ...rec, sekolahId: sekolahId ? Number(sekolahId) : undefined })}
     />
   );
 }
 
 // ============ Komponen Nilai ============
-function KomponenNilaiTab() {
+function KomponenNilaiTab({ sekolahId }: { sekolahId: string }) {
+  const fetchUrl = sekolahId ? `/api/komponen-nilai?sekolahId=${sekolahId}` : "/api/komponen-nilai";
   const columns: ColumnDef<KomponenNilai>[] = [
     { key: "nama", header: "Nama", cell: (r) => <span className="font-medium text-slate-800">{r.nama}</span> },
     { key: "bobot", header: "Bobot (%)", cell: (r) => <Badge variant="outline" className="text-[10px]">{r.bobot}%</Badge> },
     { key: "keterangan", header: "Keterangan", cell: (r) => <span className="text-xs text-slate-600">{r.keterangan || "-"}</span> },
     { key: "_count", header: "Penilaian", cell: (r) => r._count?.penilaians ?? 0 },
+    { key: "statusAktif", header: "Status", cell: (r) =>
+      r.statusAktif
+        ? <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Aktif</Badge>
+        : <Badge className="bg-slate-200 text-slate-600 text-[10px]">Nonaktif</Badge>
+    },
   ];
   const fields: FieldDef[] = [
     { key: "nama", label: "Nama * (cth: UTS, UAS, Tugas)", type: "text", required: true, full: true },
     { key: "bobot", label: "Bobot (0-100)", type: "number", required: true, step: "0.1", help: "Persentase bobot dalam nilai akhir" },
     { key: "keterangan", label: "Keterangan", type: "textarea", full: true },
+    { key: "statusAktif", label: "Status Aktif", type: "switch", full: true },
   ];
   return (
     <CrudTable<KomponenNilai>
       title="Komponen Nilai"
       description="Komponen penilaian (UTS, UAS, Tugas, Harian)"
-      fetchUrl="/api/komponen-nilai"
+      fetchUrl={fetchUrl}
       columns={columns}
       fields={fields}
-      emptyRecord={{ nama: "", bobot: 0, keterangan: "" }}
+      emptyRecord={{ nama: "", bobot: 0, keterangan: "", statusAktif: true }}
       searchKeys={["nama"]}
       searchPlaceholder="Cari komponen..."
       validate={(rec) => {
@@ -841,19 +1106,20 @@ function KomponenNilaiTab() {
         if (Number.isNaN(b) || b < 0 || b > 100) return "Bobot harus 0-100";
         return null;
       }}
+      formatPayload={(rec) => ({ ...rec, sekolahId: sekolahId ? Number(sekolahId) : undefined })}
     />
   );
 }
 
 // ============ Guru Mapel ============
-function GuruMapelTab() {
+function GuruMapelTab({ sekolahId }: { sekolahId: string }) {
   const [pgList, setPgList] = useState<{ value: string; label: string }[]>([]);
   const [mpList, setMpList] = useState<{ value: string; label: string }[]>([]);
-  const [kList, setKList] = useState<{ value: string; label: string }[]>([]);
+  const [tList, setTList] = useState<{ value: string; label: string }[]>([]);
   const [list, setList] = useState<GuruMapel[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState<{ pegawaiId: string; mapelId: string; kelasId: string }>({ pegawaiId: "", mapelId: "", kelasId: "" });
+  const [editing, setEditing] = useState<Partial<GuruMapel> | null>(null);
   const [saving, setSaving] = useState(false);
   const [delTarget, setDelTarget] = useState<GuruMapel | null>(null);
   const { toast } = useToast();
@@ -861,46 +1127,76 @@ function GuruMapelTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/guru-mapel");
+      const params = new URLSearchParams();
+      if (sekolahId) params.set("sekolahId", sekolahId);
+      const r = await fetch(`/api/guru-mapel?${params.toString()}`);
       const d = await r.json();
       if (Array.isArray(d)) setList(d);
     } catch { /* ignore */ } finally { setLoading(false); }
-  }, []);
+  }, [sekolahId]);
 
   useEffect(() => {
     load();
+    if (!sekolahId) return;
+    const sid = sekolahId;
     Promise.all([
-      fetch("/api/pegawai").then((r) => r.json()),
-      fetch("/api/mapel").then((r) => r.json()),
-      fetch("/api/kelas").then((r) => r.json()),
-    ]).then(([pg, mp, kl]: [PegawaiMini[], Mapel[], Kelas[]]) => {
+      fetch(`/api/pegawai?sekolahId=${sid}`).then((r) => r.json()),
+      fetch(`/api/mapel?sekolahId=${sid}`).then((r) => r.json()),
+      fetch(`/api/tingkat?sekolahId=${sid}&statusAktif=true`).then((r) => r.json()),
+    ]).then(([pg, mp, tg]: [PegawaiMini[], Mapel[], Tingkat[]]) => {
       if (Array.isArray(pg)) setPgList(pg.map((x) => ({ value: String(x.id), label: x.nama + (x.jabatan ? ` (${x.jabatan})` : "") })));
       if (Array.isArray(mp)) setMpList(mp.map((x) => ({ value: String(x.id), label: x.nama + (x.kode ? ` [${x.kode}]` : "") })));
-      if (Array.isArray(kl)) setKList(kl.map((x) => ({ value: String(x.id), label: x.nama })));
+      if (Array.isArray(tg)) setTList(tg.map((x) => ({ value: String(x.id), label: `${x.nama}${x.jenjang ? ` (${x.jenjang})` : ""}` })));
     });
-  }, [load]);
+  }, [load, sekolahId]);
 
-  const handleAdd = async () => {
-    if (!form.pegawaiId || !form.mapelId) { toast({ title: "Pegawai & Mapel wajib", variant: "destructive" }); return; }
+  const handleAdd = () => {
+    setEditing({ pegawaiId: undefined, mapelId: undefined, tingkatId: undefined, statusAktif: true });
+    setDialogOpen(true);
+  };
+  const handleEdit = (g: GuruMapel) => { setEditing({ ...g }); setDialogOpen(true); };
+
+  const handleSave = async () => {
+    if (!editing?.pegawaiId || !editing.mapelId || !editing.tingkatId) {
+      toast({ title: "Pegawai, Mapel, & Tingkat wajib", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
-      const r = await fetch("/api/guru-mapel", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pegawaiId: Number(form.pegawaiId),
-          mapelId: Number(form.mapelId),
-          kelasId: form.kelasId ? Number(form.kelasId) : null,
-        }),
-      });
+      const payload = {
+        pegawaiId: Number(editing.pegawaiId),
+        mapelId: Number(editing.mapelId),
+        tingkatId: Number(editing.tingkatId),
+        statusAktif: editing.statusAktif !== undefined ? !!editing.statusAktif : true,
+      };
+      const url = editing.id ? `/api/guru-mapel/${editing.id}` : "/api/guru-mapel";
+      const method = editing.id ? "PUT" : "POST";
+      const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Gagal menambah");
-      toast({ title: "Guru mapel ditambahkan" });
+      if (!r.ok) throw new Error(d.error || "Gagal menyimpan");
+      toast({ title: editing.id ? "Guru mapel diperbarui" : "Guru mapel ditambahkan" });
       setDialogOpen(false);
-      setForm({ pegawaiId: "", mapelId: "", kelasId: "" });
+      setEditing(null);
       await load();
     } catch (e) {
-      toast({ title: "Gagal menambah", description: e instanceof Error ? e.message : "", variant: "destructive" });
+      toast({ title: "Gagal menyimpan", description: e instanceof Error ? e.message : "", variant: "destructive" });
     } finally { setSaving(false); }
+  };
+
+  const handleToggle = async (g: GuruMapel) => {
+    try {
+      const r = await fetch(`/api/guru-mapel/${g.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusAktif: !g.statusAktif }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Gagal update");
+      toast({ title: g.statusAktif ? "Dinonaktifkan" : "Diaktifkan" });
+      await load();
+    } catch (e) {
+      toast({ title: "Gagal", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
   };
 
   const handleDelete = async () => {
@@ -916,15 +1212,17 @@ function GuruMapelTab() {
     }
   };
 
+  const update = (k: keyof GuruMapel, v: unknown) => setEditing((p) => p ? { ...p, [k]: v } : p);
+
   return (
     <Card className="border-slate-200">
       <CardContent className="p-4 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h3 className="text-base font-semibold text-slate-800">Guru Mapel</h3>
-            <p className="text-xs text-slate-500">Pasangan guru – mapel – kelas</p>
+            <p className="text-xs text-slate-500">Pasangan guru – mapel – tingkat</p>
           </div>
-          <Button size="sm" onClick={() => setDialogOpen(true)} className="bg-slate-700 hover:bg-slate-800"><Plus className="h-4 w-4 mr-1" /> Tambah</Button>
+          <Button size="sm" onClick={handleAdd} className="bg-slate-700 hover:bg-slate-800"><Plus className="h-4 w-4 mr-1" /> Tambah</Button>
         </div>
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-500" /></div>
@@ -937,8 +1235,9 @@ function GuruMapelTab() {
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">Guru</th>
                   <th className="text-left px-3 py-2 font-medium">Mapel</th>
-                  <th className="text-left px-3 py-2 font-medium">Kelas</th>
-                  <th className="text-right px-3 py-2 font-medium w-12"></th>
+                  <th className="text-left px-3 py-2 font-medium">Tingkat</th>
+                  <th className="text-left px-3 py-2 font-medium">Status</th>
+                  <th className="text-right px-3 py-2 font-medium w-24">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -946,8 +1245,18 @@ function GuruMapelTab() {
                   <tr key={g.id} className="hover:bg-slate-50/60">
                     <td className="px-3 py-2 font-medium text-slate-800">{g.pegawai?.nama || "-"}</td>
                     <td className="px-3 py-2">{g.mapel?.nama || "-"}</td>
-                    <td className="px-3 py-2">{g.kelas?.nama || <span className="text-slate-400">Semua</span>}</td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2">{g.tingkat?.nama || "-"}</td>
+                    <td className="px-3 py-2">
+                      <button onClick={() => handleToggle(g)} title="Toggle status">
+                        {g.statusAktif
+                          ? <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Aktif</Badge>
+                          : <Badge className="bg-slate-200 text-slate-600 text-[10px]">Nonaktif</Badge>}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(g)} title="Edit">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600 hover:bg-rose-50" onClick={() => setDelTarget(g)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -960,45 +1269,55 @@ function GuruMapelTab() {
         )}
       </CardContent>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditing(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Tambah Guru Mapel</DialogTitle>
-            <DialogDescription>Tetapkan guru untuk mapel & kelas tertentu.</DialogDescription>
+            <DialogTitle>{editing?.id ? "Edit Guru Mapel" : "Tambah Guru Mapel"}</DialogTitle>
+            <DialogDescription>Tetapkan guru untuk mapel & tingkat tertentu.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div>
-              <Label className="text-sm">Guru / Pegawai *</Label>
-              <Select value={form.pegawaiId} onValueChange={(v) => setForm((p) => ({ ...p, pegawaiId: v }))}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih guru" /></SelectTrigger>
-                <SelectContent>
-                  {pgList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+          {editing && (
+            <div className="space-y-3 py-2">
+              <div>
+                <Label className="text-sm">Guru / Pegawai *</Label>
+                <Select value={editing.pegawaiId ? String(editing.pegawaiId) : ""} onValueChange={(v) => update("pegawaiId", Number(v))}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Pilih guru" /></SelectTrigger>
+                  <SelectContent>
+                    {pgList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm">Mata Pelajaran *</Label>
+                <Select value={editing.mapelId ? String(editing.mapelId) : ""} onValueChange={(v) => update("mapelId", Number(v))}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Pilih mapel" /></SelectTrigger>
+                  <SelectContent>
+                    {mpList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm">Tingkat *</Label>
+                <Select value={editing.tingkatId ? String(editing.tingkatId) : ""} onValueChange={(v) => update("tingkatId", Number(v))}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Pilih tingkat" /></SelectTrigger>
+                  <SelectContent>
+                    {tList.length === 0 ? (
+                      <SelectItem value="_none" disabled>Belum ada tingkat</SelectItem>
+                    ) : tList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="gmStatusAktif" checked={!!editing.statusAktif}
+                  onCheckedChange={(v) => update("statusAktif", v)}
+                />
+                <Label htmlFor="gmStatusAktif" className="text-sm">Status Aktif</Label>
+              </div>
             </div>
-            <div>
-              <Label className="text-sm">Mata Pelajaran *</Label>
-              <Select value={form.mapelId} onValueChange={(v) => setForm((p) => ({ ...p, mapelId: v }))}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih mapel" /></SelectTrigger>
-                <SelectContent>
-                  {mpList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm">Kelas (opsional)</Label>
-              <Select value={form.kelasId || "none"} onValueChange={(v) => setForm((p) => ({ ...p, kelasId: v === "none" ? "" : v }))}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Semua kelas" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— Semua Kelas —</SelectItem>
-                  {kList.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleAdd} disabled={saving} className="bg-slate-700 hover:bg-slate-800">
+            <Button onClick={handleSave} disabled={saving} className="bg-slate-700 hover:bg-slate-800">
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Simpan
             </Button>
           </DialogFooter>
@@ -1009,7 +1328,7 @@ function GuruMapelTab() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Hapus guru mapel?</DialogTitle>
-            <DialogDescription>Yakin menghapus penugasan guru ini?</DialogDescription>
+            <DialogDescription>Yakin menghapus penugasan guru <b>{delTarget?.pegawai?.nama}</b> untuk mapel <b>{delTarget?.mapel?.nama}</b> di tingkat <b>{delTarget?.tingkat?.nama}</b>?</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDelTarget(null)}>Batal</Button>

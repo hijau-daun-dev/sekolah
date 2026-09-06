@@ -18,6 +18,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUpload } from "./image-upload";
 import { DataTableShell, EmptyState, SearchInput } from "./data-table-shell";
@@ -33,12 +34,13 @@ interface Ortu {
   alamat?: string | null;
   pekerjaan?: string | null;
   fotoUrl?: string | null;
+  statusAktif?: boolean;
   anakAnak?: AnakRel[];
   _count?: { anakAnak: number };
 }
 
 const empty = (): Partial<Ortu> => ({
-  nama: "", nik: "", telepon: "", email: "", alamat: "", pekerjaan: "", fotoUrl: null,
+  nama: "", nik: "", telepon: "", email: "", alamat: "", pekerjaan: "", fotoUrl: null, statusAktif: true,
 });
 
 export function OrtuSection() {
@@ -212,9 +214,14 @@ export function OrtuSection() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800 truncate">{o.nama}</p>
                     <p className="text-xs text-slate-500 truncate">{o.pekerjaan || "-"}</p>
-                    {o._count && (
-                      <Badge className="mt-1 bg-slate-100 text-slate-700">{o._count.anakAnak} anak</Badge>
-                    )}
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      {o._count && (
+                        <Badge className="bg-slate-100 text-slate-700">{o._count.anakAnak} anak</Badge>
+                      )}
+                      {o.statusAktif === false
+                        ? <Badge className="bg-slate-200 text-slate-600 text-[10px]">Nonaktif</Badge>
+                        : <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Aktif</Badge>}
+                    </div>
                   </div>
                 </div>
                 <div className="text-xs text-slate-600 space-y-1">
@@ -269,6 +276,13 @@ export function OrtuSection() {
                   <div><Label>Telepon</Label><Input value={editing.telepon || ""} onChange={(e) => update("telepon", e.target.value)} /></div>
                   <div><Label>Email</Label><Input type="email" value={editing.email || ""} onChange={(e) => update("email", e.target.value)} /></div>
                   <div className="sm:col-span-2"><Label>Alamat</Label><Textarea value={editing.alamat || ""} onChange={(e) => update("alamat", e.target.value)} rows={2} /></div>
+                  <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+                    <Switch
+                      id="ortuStatusAktif" checked={editing.statusAktif !== false}
+                      onCheckedChange={(v) => update("statusAktif", v)}
+                    />
+                    <Label htmlFor="ortuStatusAktif" className="text-sm cursor-pointer">Status Aktif</Label>
+                  </div>
                 </div>
               </div>
 

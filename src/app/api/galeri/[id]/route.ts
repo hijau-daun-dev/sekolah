@@ -52,7 +52,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     });
     if (!existing) return NextResponse.json({ error: "Item tidak ditemukan" }, { status: 404 });
 
-    await db.galeriBerita.delete({ where: { id: Number(id) } });
+    await db.galeriBerita.update({ where: { id: Number(id) }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE galeri error:", e);

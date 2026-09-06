@@ -57,7 +57,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const owned = await checkOwnership(semId, sekolahId);
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-    await db.semester.delete({ where: { id: semId } });
+    const countP = await db.penilaian.count({ where: { semesterId: semId } });
+    if (countP > 0) {
+      return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${countP} penilaian` }, { status: 400 });
+    }
+
+    // Soft delete
+    await db.semester.update({ where: { id: semId }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE semester/[id] error:", e);

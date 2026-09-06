@@ -27,15 +27,22 @@ function allowedTargetsForRole(role: string): string[] | null {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
+    const { searchParams } = new URL(req.url);
+    const qStatusAktif = searchParams.get("statusAktif");
+    const qSekolahId = searchParams.get("sekolahId");
+
     const where: Record<string, unknown> = {};
     if (sekolahId) where.sekolahId = sekolahId;
+    else if (qSekolahId) where.sekolahId = Number(qSekolahId);
+    if (qStatusAktif === "true") where.statusAktif = true;
+    else if (qStatusAktif === "false") where.statusAktif = false;
 
     const allowedTargets = allowedTargetsForRole(session.user.role);
     if (allowedTargets) where.target = { in: allowedTargets };

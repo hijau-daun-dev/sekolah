@@ -2,14 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/session";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
-    const where = sekolahId ? { sekolahId } : {};
-    const data = await db.tingkat.findMany({ where, orderBy: [{ urutan: "asc" }, { nama: "asc" }] });
+
+    const { searchParams } = new URL(req.url);
+    const qSekolahId = searchParams.get("sekolahId");
+    const qStatusAktif = searchParams.get("statusAktif");
+
+    const where: Record<string, unknown> = {};
+    if (sekolahId) where.sekolahId = sekolahId;
+    else if (qSekolahId) where.sekolahId = Number(qSekolahId);
+    if (qStatusAktif === "true") where.statusAktif = true;
+    else if (qStatusAktif === "false") where.statusAktif = false;
+
+    const data = await db.tingkat.findMany({
+      where,
+      orderBy: [{ urutan: "asc" }, { nama: "asc" }],
+      include: { _count: { select: { kelases: true, tingkatMapels: true, guruMapels: true } } },
+    });
     return NextResponse.json(data);
   } catch (e) {
     console.error("GET tingkat error:", e);
@@ -25,7 +39,7 @@ export async function POST(req: NextRequest) {
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
     const body = await req.json();
-    const { nama, jenjang, urutan } = body;
+    const { nama, jenjang, urutan, statusAktif } = body;
     if (!nama || !String(nama).trim()) return NextResponse.json({ error: "nama wajib" }, { status: 400 });
 
     // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
@@ -42,6 +56,7 @@ export async function POST(req: NextRequest) {
         nama: String(nama).trim(),
         jenjang: jenjang || null,
         urutan: urutan != null ? Number(urutan) : 0,
+        statusAktif: statusAktif !== undefined ? !!statusAktif : true,
       },
     });
     return NextResponse.json(data);

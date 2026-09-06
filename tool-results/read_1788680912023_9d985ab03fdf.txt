@@ -1,0 +1,289 @@
+   200→| 4.2 | Master Akademik: TahunAjaran, Semester, Tingkat, Jurusan, Kelas, KelasSiswa, KategoriMapel, Mapel, KomponenNilai, GuruMapel | ✅ COMPLIANT | All 10 models exist with proper relations |
+   201→| 4.3 | Master Sarana: Ruangan, KategoriBarang, Barang | ✅ COMPLIANT | All 3 models with status+kondisi fields on Barang |
+   202→| 4.4 | Master Keuangan: JenisPembayaran, TarifPembayaran, PosAnggaran | ✅ COMPLIANT | All 3 models with tingkat/tahunAjaran relation |
+   203→| 4.5 | Master Sistem: Role, Sekolah, User | ✅ COMPLIANT | All 3 models; User has role/sekolah/pegawai/ortu/siswa linkages |
+   204→| 5.1a | Set TA statusAktif=true auto-unsets others | ✅ COMPLIANT | `/api/tahun-ajaran` POST and PUT/[id] both wrap in `$transaction` with `updateMany({statusAktif:false})` before setting new active |
+   205→| 5.1b | "Generate Kelas" feature (kenaikan kelas) | ❌ MISSING (HIGH) | No `/api/generate-kelas` endpoint. No "kenaikan"/"naikKelas"/"Lulus" logic outside seed. PRD Alur 1 step 2-3: "sistem membuat baris baru di tabel jembatan kelas_siswa untuk mendaftarkan siswa kelas 5 ke kelas 6 di tahun ajaran baru. Untuk siswa kelas 6 (kelas akhir) tahun lalu, sistem mengubah field status pada Master Siswa dari Aktif menjadi Lulus". Completely unimplemented. |
+   206→| 5.1c | "Generate Tagihan" feature | ✅ COMPLIANT | `/api/generate-tagihan` POST reads siswa status="Aktif", matches TarifPembayaran by tingkat via kelasSiswa→kelas→tingkatId, dedups existing (siswaId+tarifId+bulan), handles frekuensi="Sekali", sets tanggalJatuhTempo=end of bulan, returns {created, skipped, total, message}. Live-tested: created 2 tagihan for September, skipped 6 (dedup) |
+   207→| 5.2a | Guru sees jadwal today (?hari= filter) | ✅ COMPLIANT | `/api/jadwal` GET supports `?hari=`, `?kelasId=`, `?pegawaiId=` filters |
+   208→| 5.2b | Absensi siswa per kelas via kelas_siswa | ✅ COMPLIANT | `/api/absensi-siswa` GET supports `?kelasId&tanggal`, POST accepts array+upsert by (siswaId, tanggal) |
+   209→| 5.2c | Penilaian per komponen (UTS/UAS/Tugas/Harian) referencing mapel_id, siswa_id, komponen_nilai_id | ✅ COMPLIANT | `/api/penilaian` POST upsert by (siswaId, mapelId, komponenNilaiId), validates nilai 0-100 |
+   210→| 5.3a | Ortu sees only their child's tagihan | ❌ MISSING (CRITICAL) | See 3.6 — `/api/tagihan` returns all sekolah's tagihan for any authenticated user. UI in tagihan-section.tsx does NOT pass siswaId filter either. |
+   211→| 5.3b | Input pembayaran generates kodeKwitansi unique | ✅ COMPLIANT | `/api/pembayaran` POST generates `KWT-YYYYMMDD-XXXX` with 10-attempt collision retry. Live-tested: created KWT-20260903-5402 |
+   212→| 5.3c | Auto-set tagihan.statusLunas=true when paid | ✅ COMPLIANT | In `$transaction`, if `jumlahBayar >= tagihan.nominal` then `tagihanSiswa.update({statusLunas:true})`. Live-tested: Bunga's tagihan marked Lunas after payment |
+   213→| 5.3d | Cetak Kwitansi PDF | ✅ COMPLIANT | `/api/pembayaran/[id]/kwitansi` GET returns full HTML page (200, ~6.8KB) with kop sekolah, info grid, items table, terbilang, signatures, status stamp, `@media print` CSS + print button. Live-tested returns 200 with "Kwitansi Pembayaran" + siswa name. (PDF via browser "Save as PDF" — no puppeteer dep needed, satisfies PRD intent) |
+   214→| 5.4a | Pengeluaran with pos anggaran + buktiNotaUrl upload | ✅ COMPLIANT | `/api/pengeluaran` POST accepts `buktiNotaUrl`, validates `nominal>0` & posAnggaran ownership |
+   215→| 5.4b | Dashboard saldo kas = pemasukan - pengeluaran | ✅ COMPLIANT | `/api/dashboard` GET computes `saldoKas = pembayaranSum - pengeluaranSum`. Dashboard.tsx displays 3 cards: Total Pemasukan, Total Pengeluaran, Pengumuman Aktif (for SUPER_ADMIN/KEUANGAN) |
+   216→| 5.5a | Check barang.status="Tersedia" before pinjam | ✅ COMPLIANT | `/api/peminjaman` POST rejects if `barang.status !== "Tersedia"` with 400 |
+   217→| 5.5b | Update barang.status="Dipinjam" on pinjam, "Tersedia" on return | ✅ COMPLIANT | Both wrapped in `$transaction`. POST sets Dipinjam; PUT action=return sets Tersedia + bumps kondisi to "Rusak Ringan" if returned broken. DELETE also restores to Tersedia if still Dipinjam. |
+   218→| 5.5c | kondisi_kembali (Baik/Rusak) | ✅ COMPLIANT | PUT validates `kondisiKembali ∈ ["Baik","Rusak"]` |
+   219→| 5.6a | Pengumuman with target (Semua/Siswa/Ortu/Guru) | ⚠️ PARTIAL | POST validates target list. BUT GET `/api/pengumuman` does NOT filter by target × user role. A Siswa sees pengumuman with target="Guru". PRD Alur 6 implies role-targeted visibility. |
+   220→| 5.6b | Dashboard for ortu/siswa shows pengumuman | ❌ MISSING (HIGH) | `dashboard.tsx` only renders Pengumuman card for SUPER_ADMIN/KEUANGAN. SISWA & ORTU see ONLY the hero card — no stats cards, no pengumuman card. PRD Alur 6 explicitly: "Saat Orang Tua / Siswa login ke Web/PWA, sistem mengecek apakah ada pengumuman baru yang belum dibaca, lalu menampilkannya di Dashboard mereka". |
+   221→| 6 | Database field naming consistency | ✅ COMPLIANT | PRD §6 mixes snake_case (tanggal_jatuh_tempo, status_lunas) and camelCase (pegawaiId). Implementation consistently uses Prisma camelCase convention: `pegawaiId`, `statusLunas`, `tanggalJatuhTempo`, `kodeKwitansi`, `buktiNotaUrl`, `tanggalPosting`, `gambarUrl`, etc. — more consistent than PRD itself. |
+   222→| X1 | Lint: 0 errors | ✅ COMPLIANT | `bun run lint` exit 0 |
+   223→| X2 | All API endpoints return 200 | ✅ COMPLIANT | Live-tested 33 endpoints as admin (sekolah, pegawai, siswa, ortu, tahun-ajaran, semester, tingkat, jurusan, kelas, kelas-siswa, kategori-mapel, mapel, komponen-nilai, guru-mapel, ruangan, kategori-barang, barang, jenis-pembayaran, tarif-pembayaran, pos-anggaran, jadwal, absensi-siswa, penilaian, absensi-pegawai, tagihan, pembayaran, pengeluaran, peminjaman, pengumuman, galeri, role, user, dashboard) — all 200. Note: dev.log shows stale PrismaClientValidationError for `/api/guru-mapel` (`Unknown field 'kelas' for include statement`) from BEFORE the file was fixed at 06:27:13; current route.ts has the `kelas` include removed and returns 200. |
+   224→| X3 | Login flow (admin/guru/keuangan) | ✅ COMPLIANT | All 3 logins succeed (verified via curl + agent-browser). Sidebar menus filter correctly per role. (Minor UX issue: agent-browser's signIn({redirect:false}) sometimes fails to call router.push on first attempt — needs manual navigation. Does NOT affect production users using real browsers.) |
+   225→| X4 | Generate Tagihan Massal flow | ✅ COMPLIANT | Live-tested: dialog opens, TA + bulan selectable, generate creates 2 new tagihan (1 per active siswa), shows toast "Berhasil generate 2 tagihan (created: 2, skipped: 6)" |
+   226→| X5 | Input Pembayaran flow | ✅ COMPLIANT | Live-tested: dialog opens, tagihan dropdown shows unpaid tagihans, jumlahBayar auto-fills with nominal, Simpan creates pembayaran with kode KWT-20260903-5402, tagihan auto-marked Lunas |
+   227→| X6 | Cetak Kwitansi flow | ✅ COMPLIANT | `/api/pembayaran/2/kwitansi` returns 200 HTML 6788 bytes containing "Kwitansi Pembayaran" + siswa name + window.print() |
+   228→| X7 | Struktur Organisasi tree | ✅ COMPLIANT | Live-tested: 3 pegawai in hierarchy (Dr. Bambang Sutrisno L0 → Siti Aminah L1 → Ahmad Fauzi L2), stats (Total Personil=3, Titik Puncak=1, Kedalaman Maks=3 level), Expand/Collapse/Cetak buttons present |
+   229→
+   230→### MISSING Features (must be built)
+   231→
+   232→1. **❌ Generate Kelas (Kenaikan Kelas)** — PRD Alur 1 step 2-3. No endpoint exists. Needs:
+   233→   - `/api/generate-kelas` POST accepting `{ fromTahunAjaranId, toTahunAjaranId }`
+   234→   - For each KelasSiswa in from-TA: if kelas.tingkat is NOT the highest (e.g. < 6 for SD, < 9 for SMP), find or create matching Kelas in to-TA (same nama kelas, next tingkat) and create new KelasSiswa row
+   235→   - For siswa in highest tingkat (kelas 6 SD / kelas 9 SMP): set `Siswa.status = "Lulus"`
+   236→   - UI: button in AkademikSection → TahunAjaran tab or Kelas tab
+   237→
+   238→2. **❌ Ortu/Siswa data isolation** — PRD §3.6 + Alur 3. Currently any authenticated user sees any sekolah-scoped record. Needs:
+   239→   - `/api/tagihan` GET: if role=ORTU, resolve `ortuId → ortuSiswa.siswaId[]` and filter `siswaId IN [...]`. If role=SISWA, filter `siswaId = session.siswaId`.
+   240→   - `/api/pembayaran` GET: same Ortu/Siswa filter via tagihanSiswa.siswaId.
+   241→   - `/api/pembayaran` POST: block role=SISWA/ORTU (only SUPER_ADMIN/KEUANGAN can input payment per PRD Alur 3 "Admin Keuangan... membuka menu Input Pembayaran")
+   242→   - `/api/penilaian` GET: if role=SISWA, filter siswaId = session.siswaId; if ORTU, filter by their children's siswaIds
+   243→   - `/api/absensi-siswa` GET: same
+   244→   - tagihan-section.tsx, pembayaran-section.tsx: pass siswaId when role=ORTU/SISWA
+   245→
+   246→3. **❌ Dashboard pengumuman for Ortu/Siswa** — PRD Alur 6. dashboard.tsx gates Pengumuman card behind `role === "SUPER_ADMIN" || role === "KEUANGAN"`. Need:
+   247→   - For SISWA/ORTU roles, show a "Pengumuman Terbaru" card list (filtered by target matching role)
+   248→   - Optionally: track read status (PengumumanRead table) — PRD mentions "pengumuman baru yang belum dibaca"
+   249→
+   250→4. **❌ Zod input validation** — PRD §3. zod is installed but unused. Needs:
+   251→   - Define Zod schemas for all POST/PUT bodies (especially money/nominal/nilai fields)
+   252→   - Replace ad-hoc `if (!field) return 400` checks with `schema.safeParse(body)` patterns
+   253→   - At minimum: pembayaran, pengeluaran, penilaian, tagihan, generate-tagihan
+   254→
+   255→5. **⚠️ Middleware role-based URL protection** — PRD §3 "Middleware Next.js: Memblokir akses rute (URL) yang tidak sesuai dengan role". Currently middleware only checks cookie presence. Either:
+   256→   - Add role-to-path matcher in middleware (e.g. /admin/* requires SUPER_ADMIN, /keuangan/* requires KEUANGAN/SUPER_ADMIN), OR
+   257→   - Document that RBAC is enforced at API level only (page-level is cosmetic) — but that requires API-level role checks which are also currently missing for ORTU/SISWA flows (see #2)
+   258→
+   259→### BUGS to fix
+   260→
+   261→1. **🐛 Stale dev.log error: `/api/guru-mapel` Unknown field 'kelas'** — already fixed in source at `src/app/api/guru-mapel/route.ts:25-32` (kelas include removed). The error in `/home/z/my-project/dev.log` is from compile cache before 06:27:13. Live test confirms 200. **No action needed** unless dev.log is used for monitoring — recommend `rm -rf .next && bun run dev` to clear cache.
+   262→
+   263→2. **🐛 `auth-guard.ts` helpers `requireRole` / `requireSekolahId` / `filterBySekolah` are DEAD CODE** — only `auth-guard.ts` itself imports them (self-reference). All 60+ API routes do inline `const session = await auth(); if (!session?.user) return 401` boilerplate. Not a runtime bug but a maintenance smell — promotes inconsistency (some routes use `sekolahId ? { sekolahId } : {}`, others use `filterBySekolah`-style). Recommend either deleting the helpers or migrating routes to use them.
+   264→
+   265→3. **🐛 Pembayaran API allows ANY authenticated user to create payments** — `/api/pembayaran` POST does not check role. PRD Alur 3 says only Admin Keuangan inputs payments. Currently a SISWA or ORTU could POST and create a pembayaran for any tagihan in their sekolah. File: `src/app/api/pembayaran/route.ts:58-149`. Fix: add `if (!["SUPER_ADMIN","KEUANGAN"].includes(session.user.role)) return 403`.
+   266→
+   267→4. **🐛 Pengeluaran API allows TU to create pengeluaran** — `/api/pengeluaran` POST has no role check. PRD Alur 4: "Admin Keuangan membuka menu Pengeluaran". page.tsx correctly gates UI to SUPER_ADMIN/KEUANGAN, but API is open to TU/GURU/SISWA/ORTU. File: `src/app/api/pengeluaran/route.ts:28-81`. Same fix pattern.
+   268→
+   269→5. **🐛 Pengumuman API does not filter by target × role** — `/api/pengumuman` GET returns all sekolah's pengumuman regardless of caller role. A SISWA sees target="Guru" pengumuman. File: `src/app/api/pengumuman/route.ts:5-23`. Fix: if role=SISWA, `where.target IN ["Semua","Siswa"]`; if ORTU, `IN ["Semua","Siswa","Ortu"]`; if GURU, `IN ["Semua","Guru"]`.
+   270→
+   271→6. **🐛 Keuangan cannot see Pengumuman menu** — `page.tsx:77` excludes KEUANGAN from pengumuman.roles. PRD doesn't strictly require it but Keuangan may miss broadcast info. Minor — design choice, not a bug per se.
+   272→
+   273→### PARTIAL implementations with specific gaps
+   274→
+   275→1. **⚠️ Multi-tenancy** — sekolahId filter works for SUPER_ADMIN cross-sekolah isolation. But within a sekolah, no per-user isolation (Ortu sees all sekolah's tagihan, Siswa sees all sekolah's grades, etc.). See MISSING #2.
+   276→
+   277→2. **⚠️ Middleware RBAC** — only cookie presence check, no role-to-URL mapping. See MISSING #5.
+   278→
+   279→3. **⚠️ Pengumuman target** — POST validates target enum, but GET doesn't apply target × role filter. See BUG #5.
+   280→
+   281→4. **⚠️ Dashboard for non-admin roles** — Siswa/Ortu see only hero card, no useful info. PRD Alur 6 requires pengumuman display. See MISSING #3.
+   282→
+   283→5. **⚠️ Keuangan role menu scope** — Keuangan doesn't see Pengumuman in sidebar. PRD doesn't explicitly require it, but Alur 6 implies all roles receive broadcasts. Minor.
+   284→
+   285→6. **⚠️ `tahunAjaranId` is not on `KelasSiswa` schema relation** — KelasSiswa has `tahunAjaranId Int` field but no relation defined (schema.prisma:248). Code uses it for filtering (e.g. generate-tagihan line 66 `where: { tahunAjaranId: Number(tahunAjaranId) }`). Works but missing Prisma relation for type-safe includes.
+   286→
+   287→### Overall Compliance Score: **78/100**
+   288→
+   289→Breakdown:
+   290→- Section 2 (User Roles): 10/10
+   291→- Section 3 (Security): 13/20 (Zod 0/3, Multi-tenancy within sekolah 1/4, others 12/13)
+   292→- Section 4 (Master Data): 14/14 (all tables present)
+   293→- Section 5 Alur 1 (TA + Generate): 7/10 (Generate Kelas missing 0/3)
+   294→- Section 5 Alur 2 (KBM): 9/9
+   295→- Section 5 Alur 3 (Pembayaran): 6/9 (Ortu isolation missing 0/3)
+   296→- Section 5 Alur 4 (Kas Keluar): 5/5
+   297→- Section 5 Alur 5 (Peminjaman): 6/6
+   298→- Section 5 Alur 6 (Komunikasi): 3/6 (Dashboard for Ortu/Siswa missing 0/3)
+   299→- Section 6 (DB Design): 5/5
+   300→- Bonus (lint clean, all API 200, login flow, generate tagihan flow, pembayaran flow, kwitansi flow, struktur flow): 10/7
+   301→
+   302→**Verdict**: Core architecture (auth, schema, master data CRUD, generate tagihan, pembayaran+kwitansi, peminjaman, struktur organisasi) is solid and PRODUCTION-READY for the SUPER_ADMIN/TU/KEUANGAN/GURU use cases. The Ortu/Siswa experience is BROKEN — they can see other students' data (privacy violation) and have an empty dashboard (UX failure). The "Generate Kelas" feature for Awal Tahun Ajaran is completely missing. Zod validation is absent throughout. Middleware RBAC is cosmetic only.
+   303→
+   304→**Top 3 priorities for next iteration**:
+   305→1. Implement Ortu/Siswa data isolation in /api/tagihan, /api/pembayaran, /api/penilaian, /api/absensi-siswa (CRITICAL privacy)
+   306→2. Build "Generate Kelas" endpoint + UI button in AkademikSection (PRD Alur 1)
+   307→3. Add Zod schemas to all POST/PUT routes (PRD §3 security requirement)
+   308→
+   309→## Task ID: FIX-1
+   310→Agent: main (PRD compliance fixer)
+   311→Task: Fix 7 PRD compliance issues identified in AUDIT-1 (Ortu/Siswa isolation, role checks, generate-kelas, dashboard pengumuman).
+   312→
+   313→### Work Log
+   314→- Read worklog.md AUDIT-1 section, prisma/schema.prisma, src/lib/auth-helpers.ts, and the 4 target API files (penilaian, absensi-siswa, pengeluaran, pengumuman) + dashboard.tsx + dashboard/route.ts + akademik-section.tsx + _crud-table.tsx to understand structure and patterns.
+   315→- Read seed/route.ts to confirm tingkat/kelas naming convention (Tingkat nama="1".."9", urutan=0..8, jenjang SD for 1-6 / SMP for 7-9; kelas nama="6A" = tingkat.nama + suffix).
+   316→
+   317→### Files Modified
+   318→1. **src/app/api/penilaian/route.ts** (Fix 1)
+   319→   - GET: refactored to use `getAllowedSiswaIds()` + `getCurrentSekolahId()` from auth-helpers. For ORTU/SISWA, builds `where.siswa.id = { in: allowedSiswaIds }` filter (returns [] if array empty). For SUPER_ADMIN/TU/KEUANGAN/GURU → no per-siswa filter (null).
+   320→   - POST: added role check `["SUPER_ADMIN", "TU", "GURU"]` only — others get 403.
+   321→
+   322→2. **src/app/api/absensi-siswa/route.ts** (Fix 2)
+   323→   - GET: same isolation pattern as penilaian.
+   324→   - POST: added role check `["SUPER_ADMIN", "TU", "GURU"]` only.
+   325→
+   326→3. **src/app/api/pengeluaran/route.ts** (Fix 3)
+   327→   - GET: restricted to `["SUPER_ADMIN", "KEUANGAN", "TU"]` (read-only).
+   328→   - POST: added role check `["SUPER_ADMIN", "KEUANGAN"]` only (PRD Alur 4).
+   329→   - Nominal validation: now requires positive integer (`Number.isFinite && > 0 && Number.isInteger`).
+   330→
+   331→4. **src/app/api/pengumuman/route.ts** (Fix 4)
+   332→   - Added helper `allowedTargetsForRole(role)` returning target IN list per role (SUPER_ADMIN/TU/KEUANGAN → null=no filter; GURU → [Semua,Guru]; SISWA → [Semua,Siswa]; ORTU → [Semua,Ortu]).
+   333→   - GET: applies target filter on top of sekolahId filter.
+   334→   - POST: added role check `["SUPER_ADMIN", "TU", "GURU"]` only (PRD Alur 6: "Admin/Kepala Sekolah").
+   335→
+   336→5. **src/app/api/generate-kelas/route.ts** (Fix 5 — NEW FILE)
+   337→   - POST endpoint with body `{ tahunAjaranIdLama, tahunAjaranIdBaru }`.
+   338→   - Auth: SUPER_ADMIN/TU only.
+   339→   - Logic (wrapped in `db.$transaction`):
+   340→     1. Verify both TAs belong to user's sekolah (or are visible to SUPER_ADMIN).
+   341→     2. Load all kelas in TA lama with tingkat; index kelas in TA baru by `${tingkatId}::${nama}`; index all tingkat by `${jenjang}::${urutan}`.
+   342→     3. For each KelasSiswa in TA lama (filtered by sekolah):
+   343→        - Resolve old kelas.tingkat (jenjang + urutan + nama).
+   344→        - Find next tingkat: same jenjang, urutan = old+1.
+   345→        - If no next tingkat → update `Siswa.status = "Lulus"` (graduate).
+   346→        - If next tingkat exists:
+   347→          - Derive suffix from old kelas nama (strip old tingkat nama prefix; fallback to trailing alphabetic chars).
+   348→          - Build new kelas nama = `${nextTingkat.nama}${suffix}` (e.g. "5A" → "6A").
+   349→          - Find kelas in TA baru with that nama + tingkatId. If not exists → skip with reason.
+   350→          - If exists but siswa already enrolled in target kelas → skip (dedup).
+   351→          - Otherwise → create new KelasSiswa with tahunAjaranIdBaru (promote).
+   352→     4. Returns `{ promoted, graduated, skipped, total, details: [...] }`.
+   353→
+   354→6. **src/app/api/dashboard/route.ts** (Fix 6)
+   355→   - Added `allowedTargetsForRole()` helper (same logic as pengumuman).
+   356→   - Added `recentPengumuman` field to response: top 5 most recent pengumuman filtered by sekolah + target×role, returning `{id, judul, isi, target, tanggalPosting}`.
+   357→   - Pengumuman count now also applies target×role filter (was sekolah-only).
+   358→
+   359→7. **src/components/_common/dashboard.tsx** (Fix 6)
+   360→   - Added `RecentPengumuman` interface and corresponding state type.
+   361→   - Added `showRecentPengumuman` flag = true for SISWA/ORTU/GURU roles.
+   362→   - Added a new "Pengumuman Terbaru" Card at bottom showing top 3 most recent pengumuman (judul + target badge + isi line-clamp-2 + tanggalPosting). Empty-state shows "Belum ada pengumuman untuk Anda."
+   363→   - Kept the existing cash-flow + pengumuman count card for SUPER_ADMIN/KEUANGAN unchanged.
+   364→   - Added `CalendarClock` icon import.
+   365→
+   366→8. **src/components/_common/akademik-section.tsx** (Fix 7)
+   367→   - Imported `ArrowUpRight` from lucide-react.
+   368→   - Added new `GenerateKelasCard` component placed at top of "Tahun Ajaran & Semester" tab (before TahunAjaranTab).
+   369→   - Component renders a Card with title "Generate Kelas (Kenaikan Kelas)" + button "Generate Kelas".
+   370→   - Clicking opens a Dialog with two Select dropdowns (Tahun Ajaran Lama / Tahun Ajaran Baru) populated from /api/tahun-ajaran, helper text, and "Jalankan Generate" button.
+   371→   - Submit POSTs to /api/generate-kelas. On success: shows result panel (Total/Naik/Lulus/Skip counts) + toast with summary. On error: destructive toast.
+   372→   - Inserted `<GenerateKelasCard />` in `<TabsContent value="ta">`.
+   373→
+   374→### Lint Result
+   375→- `bun run lint` exit 0 — no errors, no warnings.
+   376→
+   377→### Verification Results
+   378→1. **Login as admin@nusantarajaya.sch.id / admin123** — SUCCESS. agent-browser navigated to /, saw all 20 sidebar menus + admin dashboard stats (Total Siswa=2, Total Pegawai=3, Jumlah Kelas=1, Mapel=2, Tagihan Belum Lunas=2, Saldo Kas=Rp500.000).
+   379→2. **`/api/generate-kelas` returns 400 on missing params** — verified: `POST {}` → `{"error":"Field wajib: tahunAjaranIdLama, tahunAjaranIdBaru"}`.
+   380→3. **`/api/generate-kelas` returns 200 on valid params** — verified: created test TA "2026/2027" (id=2), then POST `{tahunAjaranIdLama:1, tahunAjaranIdBaru:2}` → `{"promoted":0,"graduated":2,"skipped":0,"total":2}`. (Both seed siswa were in "6A" → tingkat 6 SD is kelas akhir → graduated correctly.)
+   381→4. **`/api/pengumuman` filters by role** — verified as GURU: created 3 test pengumuman (target=Guru/Siswa/Ortu). GET returned only `[{id:1,target:Semua},{id:2,target:Guru}]` — `target=Siswa` and `target=Ortu` correctly hidden from guru.
+   382→5. **Dashboard as GURU shows pengumuman card** — verified: GET /api/dashboard as guru returned `recentPengumuman` array with 2 entries (Test Guru Only + Selamat Datang). Dashboard UI snapshot showed `<h4>Test Guru Only</h4>` and `<h4>Selamat Datang Tahun Ajaran 2025/2026</h4>` inside "Pengumuman Terbaru" card.
+   383→6. **Generate Kelas UI button** — verified as admin: navigated to "Master Akademik" → "Tahun Ajaran & Semester" tab. Top of tab shows new "Generate Kelas (Kenaikan Kelas)" card with "Generate Kelas" button. Clicking opens dialog with two comboboxes (Tahun Ajaran Lama/Baru) + "Jalankan Generate" button.
+   384→7. **Demo data cleanup**: After testing, restored siswa status (Lulus→Aktif, 2 rows), deleted 3 test pengumuman, deleted test TA "2026/2027" — DB is back to pre-test state.
+   385→
+   386→### Side Effects / Notes
+   387→- `getAllowedSiswaIds()` throws `UNAUTHORIZED`/`NO_ORTU`/`NO_SISWA` if session is missing the required linkage. In the API routes I wrapped calls in `.catch(() => null)` for `getCurrentSekolahId()` (consistent with existing patterns), but kept `getAllowedSiswaIds()` without try/catch since a failure there means the user shouldn't see anything anyway (the outer try/catch returns 500).
+   388→- For ORTU users with no children linked (empty array from `getAllowedSiswaIds()`), penilaian/absensi GET now returns `[]` (early return) — graceful degradation.
+   389→- The `allowedTargetsForRole` helper is duplicated between `/api/pengumuman/route.ts` and `/api/dashboard/route.ts` — kept duplication intentionally for minimal-edit policy. Could be extracted to `auth-helpers.ts` in a future refactor.
+   390→- The "Generate Kelas" UI lives in its own Card above the TahunAjaranTab CrudTable (instead of next to the inline "Tambah" button) because CrudTable's "Tambah" button is encapsulated and the spec's "next to" was interpreted loosely as "in the same TA tab". This placement is more discoverable.
+   391→
+   392→### Compliance Update (vs AUDIT-1 scorecard)
+   393→- **3.6 PWA-level data isolation** → now PARTIAL→COMPLIANT for penilaian + absensi-siswa (was CRITICAL MISSING). Tagihan/pembayaran Ortu isolation was NOT in scope for FIX-1 (still PARTIAL).
+   394→- **5.1b Generate Kelas** → MISSING→COMPLIANT (PRD Alur 1 fully implemented end-to-end: endpoint + UI button).
+   395→- **5.6a Pengumuman target×role filter** → PARTIAL→COMPLIANT.
+   396→- **5.6b Dashboard for ortu/siswa pengumuman** → MISSING→COMPLIANT (GURU/SISWA/ORTU now see "Pengumuman Terbaru" card with top 3 most recent).
+   397→- **BUG #3 Pengeluaran role check** → FIXED (POST SUPER_ADMIN/KEUANGAN only, GET SUPER_ADMIN/KEUANGAN/TU, nominal positive-integer validation added).
+   398→- **BUG #4 Penilaian/Absensi role check** → FIXED (POST SUPER_ADMIN/TU/GURU only on both).
+   399→- **BUG #5 Pengumuman target filter** → FIXED (see 5.6a above).
+   400→
+   401→### Not in scope for FIX-1 (deferred to next iteration)
+   402→- Zod input validation (PRD §3) — still absent.
+   403→- Middleware role-based URL protection (still cookie-only).
+   404→- Ortu/Siswa isolation for `/api/tagihan` and `/api/pembayaran` (Alur 3) — penilaian & absensi done, but tagihan/pembayaran still need same treatment.
+   405→- Track read status of pengumuman (PengumumanRead table) — PRD mentions "pengumuman baru yang belum dibaca".
+   406→
+   407→## Task ID: FIX-2-ZOD
+   408→Agent: code-agent (Zod validation rollout)
+   409→Task: Tambahkan validasi Zod ke 9 API route yang belum pakai schema (pembayaran & pengeluaran sudah jadi referensi pattern).
+   410→
+   411→Work Log:
+   412→- Membaca `src/lib/schemas/index.ts` dan 2 route referensi (pembayaran, pengeluaran) untuk memahami pattern.
+   413→- Membaca 9 route target dan `src/lib/auth-helpers.ts` untuk konteks.
+   414→- Pattern diterapkan ke setiap route: import schema → safeParse dengan Number() conversion untuk numeric fields → 400 + `Validasi gagal` + `details` jika gagal → destructured `parsed.data` untuk logic berikutnya.
+   415→- File modified (9):
+   416→  1. `src/app/api/pengumuman/route.ts` — pengumumanSchema (judul/isi/target enum)
+   417→  2. `src/app/api/tagihan/route.ts` — tagihanSchema (preserve isolation di GET)
+   418→  3. `src/app/api/generate-tagihan/route.ts` — generateTagihanSchema (+ business rule BULAN_LIST enum tetap dipertahankan post-parse)
+   419→  4. `src/app/api/generate-kelas/route.ts` — generateKelasSchema (+ business rule "TAs must differ" tetap dipertahankan post-parse)
+   420→  5. `src/app/api/penilaian/route.ts` — penilaianSchema (array; normalize body ke array dulu; tahunAjaranId & tanggal diambil dari rawArr karena tidak ada di schema — diberi komentar)
+   421→  6. `src/app/api/absensi-siswa/route.ts` — absensiSiswaSchema (array; normalize; semua field ada di schema)
+   422→  7. `src/app/api/siswa/route.ts` — siswaSchema
+   423→  8. `src/app/api/pegawai/route.ts` — pegawaiSchema (orgLevel/orgOrder/parentId di-Number() sebelum parse)
+   424→  9. `src/app/api/user/route.ts` — userSchema (password optional di schema; POST tambah check `if (!password)` setelah parse)
+   425→- Preserve semua auth check, sekolahId filter, role check, transaction, isolation, fallback pegawaiId, kodeKwitansi generation, email uniqueness check, role existence check, dll. Hanya blok manual validation yang diganti dengan Zod.
+   426→- Lint: `bun run lint` → exit 0, 0 errors, 0 warnings.
+   427→- Smoke test via agent-browser (login admin@nusantarajaya.sch.id): navigate ke Pengumuman module → list loads. Direct API probe ke 9 endpoint dengan input invalid & valid → Zod correctly returns 400 `Validasi gagal` untuk invalid, 200/created untuk valid. Termasuk penilaian & absensi-siswa (array schema), user (password required on POST), pegawai (NaN orgLevel).
+   428→- Pre-existing issue (NOT introduced by task ini): `POST /api/pengumuman` as SUPER_ADMIN mengembalikan 400 `sekolahId wajib untuk super admin` karena frontend tidak kirim `sekolahId` di body dan route force `sekolahId = undefined` untuk SUPER_ADMIN. Block ini preserved verbatim dari kode original; bukan di scope FIX-2-ZOD.
+   429→- Work record: `/agent-ctx/FIX-2-ZOD-code-agent.md`
+   430→
+   431→Outcome: Semua 9 API route kini konsisten memakai shared Zod schemas. PRD §3 (strict input validation) sudah terpenuhi untuk endpoint POST utama. Lint bersih, smoke test pass.
+   432→
+   433→## Task ID: FIX-3-SEKOLAH
+   434→Agent: code-agent (Super Admin sekolahId fallback fix)
+   435→Task: Bug — 16 API route punya pattern `if (!sid) return NextResponse.json({ error: "sekolahId wajib untuk super admin" }, { status: 400 });` yang mem-block Super Admin (tidak punya sekolahId di session) dari create data.
+   436→
+   437→Work Log:
+   438→- Membaca worklog.md (konteks FIX-1 + FIX-2-ZOD). FIX-2-ZOD sudah menandai bug ini sebagai pre-existing issue di /api/pengumuman yang out-of-scope saat itu. /api/tahun-ajaran dan /api/pengumuman sudah di-fix sebelumnya dengan pattern fallback `db.sekolah.findFirst()`.
+   439→- Grep verifikasi: semua 16 file target memakai pattern identik `const sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);` + single-line `if (!sid) return ...`. Tidak ada variasi nama variabel (semua `sid`, bukan `sekolahIdFinal`). Tidak ada pattern di PUT/PATCH handler tambahan (masing-masing file hanya 1 occurence di POST).
+   440→- Apply fix ke 16 file (single Edit per file — tidak butuh MultiEdit karena hanya 1 occurence per file):
+   441→  ```ts
+   442→  // Resolve sekolahId: from session, or body, or fallback to first sekolah for super admin
+   443→  let sid = sekolahId ?? (body.sekolahId ? Number(body.sekolahId) : undefined);
+   444→  if (!sid) {
+   445→    const firstSekolah = await db.sekolah.findFirst({ select: { id: true } });
+   446→    if (!firstSekolah) return NextResponse.json({ error: "Belum ada sekolah terdaftar" }, { status: 400 });
+   447→    sid = firstSekolah.id;
+   448→  }
+   449→  ```
+   450→  Key: `const` → `let` (reassign), tambah fallback query, error message baru "Belum ada sekolah terdaftar".
+   451→
+   452→Files modified (16):
+   453→1. `src/app/api/kategori-mapel/route.ts`
+   454→2. `src/app/api/mapel/route.ts`
+   455→3. `src/app/api/tarif-pembayaran/route.ts`
+   456→4. `src/app/api/siswa/route.ts`
+   457→5. `src/app/api/jurusan/route.ts`
+   458→6. `src/app/api/kelas/route.ts`
+   459→7. `src/app/api/pegawai/route.ts`
+   460→8. `src/app/api/pos-anggaran/route.ts`
+   461→9. `src/app/api/kategori-barang/route.ts`
+   462→10. `src/app/api/ruangan/route.ts`
+   463→11. `src/app/api/ortu/route.ts`
+   464→12. `src/app/api/barang/route.ts`
+   465→13. `src/app/api/galeri/route.ts`
+   466→14. `src/app/api/tingkat/route.ts`
+   467→15. `src/app/api/komponen-nilai/route.ts`
+   468→16. `src/app/api/jenis-pembayaran/route.ts`
+   469→
+   470→Lint Result:
+   471→- `bun run lint` exit 0 — 0 errors, 0 warnings.
+   472→
+   473→Verification Results:
+   474→1. Login as admin@nusantarajaya.sch.id / admin123 → HTTP 302 (success).
+   475→2. POST /api/tahun-ajaran `{"nama":"2026/2027","statusAktif":false}` → 200 dengan `{"id":3,"sekolahId":1,"nama":"2026/2027",...}` (sebelumnya di test FIX-1 sempat return 400 — sekarang success).
+   476→3. POST /api/kategori-mapel `{"nama":"Test Kategori"}` → 200 dengan `{"id":2,"sekolahId":1,"nama":"Test Kategori","keterangan":null,"_count":{"mapels":0}}`. Tidak ada lagi "sekolahId wajib untuk super admin".
+   477→4. Cleanup: DELETE /api/tahun-ajaran/3 → `{"ok":true}`; DELETE /api/kategori-mapel/2 → `{"ok":true}`.
+   478→5. Verifikasi GET post-cleanup: kategori-mapel hanya `[{"id":1,"nama":"Wajib (A)"}]`; tahun-ajaran hanya `[{"id":1,"nama":"2025/2026"}]`. DB kembali ke pre-test state.
+   479→
+   480→Side Effects / Notes:
+   481→- Pattern fix konsisten dengan /api/tahun-ajaran dan /api/pengumuman yang sudah di-fix sebelumnya — sekarang total 18 endpoint pakai fallback yang sama.
+   482→- Behavior change: kalau database benar-benar kosong (tidak ada Sekolah sama sekali), endpoint return 400 "Belum ada sekolah terdaftar" (lebih user-friendly dari error lama). Edge case ini sangat jarang karena seed endpoint selalu bikin minimal 1 sekolah.
+   483→- Tidak ada change ke auth check, role check, Zod validation, transaction, atau logic bisnis. Hanya 2 baris lama (`const sid` + single-line `if`) diganti jadi 7 baris baru.
+   484→- Pattern `let sid = ...; if (!sid) { firstSekolah fallback }` di-duplicate di 18 file. Refactor ke helper `resolveSekolahId(session, body)` di auth-helpers.ts bisa dilakukan di iterasi berikutnya, tapi duplication sengaja dipertahankan untuk minimal-edit policy sesuai task brief.
+   485→- Work record: `/agent-ctx/FIX-3-SEKOLAH-code-agent.md`
+   486→
+
+[showing lines 200-486 of 488; use offset=487 with limit to continue reading]

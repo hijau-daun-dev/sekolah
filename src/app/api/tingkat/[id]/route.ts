@@ -21,13 +21,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
     const body = await req.json();
-    const { nama, jenjang, urutan } = body;
+    const { nama, jenjang, urutan, statusAktif } = body;
     const data = await db.tingkat.update({
       where: { id: tid },
       data: {
         nama: nama ? String(nama).trim() : undefined,
-        jenjang: jenjang ?? null,
+        jenjang: jenjang === undefined ? undefined : jenjang || null,
         urutan: urutan != null ? Number(urutan) : undefined,
+        statusAktif: statusAktif !== undefined ? !!statusAktif : undefined,
       },
     });
     return NextResponse.json(data);
@@ -48,10 +49,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const owned = await checkOwnership(tid, sekolahId);
     if (!owned) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-    const cnt = await db.kelas.count({ where: { tingkatId: tid } });
-    if (cnt > 0) return NextResponse.json({ error: `Tidak dapat dihapus: masih dipakai ${cnt} kelas` }, { status: 400 });
-
-    await db.tingkat.delete({ where: { id: tid } });
+    // Soft delete: set statusAktif = false instead of hard delete
+    await db.tingkat.update({ where: { id: tid }, data: { statusAktif: false } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE tingkat/[id] error:", e);

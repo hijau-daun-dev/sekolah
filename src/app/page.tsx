@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Building2, Users, GraduationCap, DoorOpen, BookOpen,
   CalendarDays, ClipboardCheck, FileBarChart, Wallet, PackageOpen,
   Megaphone, Image as ImageIcon, Network, Settings, LogOut, Menu, X,
-  ChevronDown, User as UserIcon,
+  ChevronDown, User as UserIcon, Layers, ClipboardList, Trophy,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -20,6 +20,8 @@ import { SekolahSection } from "@/components/_common/sekolah-section";
 import { SiswaSection } from "@/components/_common/siswa-section";
 import { PegawaiSection } from "@/components/_common/pegawai-section";
 import { OrtuSection } from "@/components/_common/ortu-section";
+import { TingkatSection } from "@/components/_common/tingkat-section";
+import { KelasSection } from "@/components/_common/kelas-section";
 import { AkademikSection } from "@/components/_common/akademik-section";
 import { SaranaSection } from "@/components/_common/sarana-section";
 import { KeuanganMasterSection } from "@/components/_common/keuangan-master-section";
@@ -29,7 +31,9 @@ import { PengeluaranSection } from "@/components/_common/pengeluaran-section";
 import { JadwalSection } from "@/components/_common/jadwal-section";
 import { AbsensiSiswaSection } from "@/components/_common/absensi-siswa-section";
 import { PenilaianSection } from "@/components/_common/penilaian-section";
+import { RekapNilaiSection } from "@/components/_common/rekap-nilai-section";
 import { AbsensiPegawaiSection } from "@/components/_common/absensi-pegawai-section";
+import { EkstrakurikulerSection } from "@/components/_common/ekstrakurikuler-section";
 import { PeminjamanSection } from "@/components/_common/peminjaman-section";
 import { PengumumanSection } from "@/components/_common/pengumuman-section";
 import { GaleriSection } from "@/components/_common/galeri-section";
@@ -38,8 +42,8 @@ import { UserManagementSection } from "@/components/_common/user-management-sect
 
 type Tab =
   | "dashboard" | "sekolah" | "pegawai" | "siswa" | "ortu"
-  | "akademik" | "sarana" | "keuangan-master"
-  | "jadwal" | "absensi-siswa" | "penilaian" | "absensi-pegawai"
+  | "tingkat" | "akademik" | "kelas" | "sarana" | "keuangan-master"
+  | "jadwal" | "absensi-siswa" | "penilaian" | "rekap-nilai" | "absensi-pegawai" | "ekstrakurikuler"
   | "tagihan" | "pembayaran" | "pengeluaran"
   | "peminjaman" | "pengumuman" | "galeri"
   | "struktur" | "users";
@@ -60,14 +64,19 @@ const allNav: NavItem[] = [
   { id: "pegawai", label: "Data Pegawai", desc: "Guru & staf", icon: Users, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
   { id: "siswa", label: "Data Siswa", desc: "Master siswa", icon: GraduationCap, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
   { id: "ortu", label: "Data Ortu/Wali", desc: "Master ortu", icon: Users, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
-  { id: "akademik", label: "Master Akademik", desc: "TA, tingkat, kelas, mapel", icon: BookOpen, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
+  { id: "tingkat", label: "Master Tingkat", desc: "Tingkat per jenjang", icon: Layers, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
+  { id: "akademik", label: "Master Akademik", desc: "TA, jurusan, kelas, mapel", icon: BookOpen, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
+  { id: "kelas", label: "Master Kelas", desc: "Kelas per TA & tingkat", icon: DoorOpen, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
   { id: "sarana", label: "Master Sarana", desc: "Ruangan & barang", icon: PackageOpen, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
   { id: "keuangan-master", label: "Master Keuangan", desc: "Tarif & pos anggaran", icon: Wallet, group: "Master Data", roles: ["SUPER_ADMIN", "TU", "KEUANGAN"] },
 
   { id: "jadwal", label: "Jadwal Pelajaran", desc: "Jadwal guru-kelas", icon: CalendarDays, group: "Akademik", roles: ["SUPER_ADMIN", "TU", "GURU", "SISWA"] },
-  { id: "absensi-siswa", label: "Absensi Siswa", desc: "Harian per kelas", icon: ClipboardCheck, group: "Akademik", roles: ["SUPER_ADMIN", "TU", "GURU"] },
   { id: "penilaian", label: "Penilaian", desc: "Nilai per komponen", icon: FileBarChart, group: "Akademik", roles: ["SUPER_ADMIN", "TU", "GURU", "SISWA"] },
-  { id: "absensi-pegawai", label: "Absensi Pegawai", desc: "Jam masuk-pulang", icon: ClipboardCheck, group: "Akademik", roles: ["SUPER_ADMIN", "TU"] },
+  { id: "rekap-nilai", label: "Rekap Nilai", desc: "Rekap nilai per kelas/siswa", icon: ClipboardList, group: "Akademik", roles: ["SUPER_ADMIN", "TU", "GURU", "SISWA", "ORTU"] },
+  { id: "ekstrakurikuler", label: "Ekstrakurikuler", desc: "Ekskul & peserta", icon: Trophy, group: "Akademik", roles: ["SUPER_ADMIN", "TU", "GURU", "SISWA", "ORTU"] },
+
+  { id: "absensi-siswa", label: "Absensi Siswa", desc: "Harian per kelas", icon: ClipboardCheck, group: "Absensi", roles: ["SUPER_ADMIN", "TU", "GURU"] },
+  { id: "absensi-pegawai", label: "Absensi Pegawai", desc: "Jam masuk-pulang", icon: ClipboardCheck, group: "Absensi", roles: ["SUPER_ADMIN", "TU"] },
 
   { id: "tagihan", label: "Tagihan Siswa", desc: "Generate & list", icon: Wallet, group: "Keuangan", roles: ["SUPER_ADMIN", "TU", "KEUANGAN", "SISWA", "ORTU"] },
   { id: "pembayaran", label: "Pembayaran", desc: "Input + kwitansi PDF", icon: FileBarChart, group: "Keuangan", roles: ["SUPER_ADMIN", "KEUANGAN", "SISWA", "ORTU"] },
@@ -87,13 +96,17 @@ const titleMap: Record<Tab, { title: string; subtitle: string }> = {
   pegawai: { title: "Data Pegawai", subtitle: "Guru & staf beserta struktur organisasi" },
   siswa: { title: "Data Siswa", subtitle: "Master data siswa" },
   ortu: { title: "Data Orang Tua/Wali", subtitle: "Master data orang tua & relasi ke siswa" },
-  akademik: { title: "Master Akademik", subtitle: "Tahun ajaran, tingkat, kelas, mapel, komponen nilai" },
+  tingkat: { title: "Master Tingkat", subtitle: "Tingkat kelas per jenjang (SD/MI/SMP/MTs/MA)" },
+  akademik: { title: "Master Akademik", subtitle: "Tahun ajaran, jurusan, kelas, mapel, komponen nilai" },
+  kelas: { title: "Master Kelas", subtitle: "Kelas per tahun ajaran & tingkat" },
   sarana: { title: "Master Sarana", subtitle: "Ruangan, kategori barang, & inventaris" },
   "keuangan-master": { title: "Master Keuangan", subtitle: "Jenis pembayaran, tarif, & pos anggaran" },
   jadwal: { title: "Jadwal Pelajaran", subtitle: "Jadwal guru per kelas per hari" },
   "absensi-siswa": { title: "Absensi Siswa", subtitle: "Input kehadiran harian per kelas" },
   penilaian: { title: "Penilaian Siswa", subtitle: "Input nilai per komponen (UTS/UAS/Tugas/Harian)" },
+  "rekap-nilai": { title: "Rekap Nilai", subtitle: "Rekap nilai per kelas atau per siswa" },
   "absensi-pegawai": { title: "Absensi Pegawai", subtitle: "Catat jam masuk & pulang pegawai" },
+  ekstrakurikuler: { title: "Ekstrakurikuler", subtitle: "Daftar ekskul, jadwal, & peserta" },
   tagihan: { title: "Tagihan Siswa", subtitle: "Generate tagihan massal & monitoring pelunasan" },
   pembayaran: { title: "Pembayaran", subtitle: "Input pembayaran + cetak kwitansi PDF" },
   pengeluaran: { title: "Pengeluaran Kas", subtitle: "Catat kas keluar dengan upload bukti nota" },
@@ -297,13 +310,17 @@ export default function Home() {
             {active === "pegawai" && <PegawaiSection />}
             {active === "siswa" && <SiswaSection />}
             {active === "ortu" && <OrtuSection />}
+            {active === "tingkat" && <TingkatSection />}
             {active === "akademik" && <AkademikSection />}
+            {active === "kelas" && <KelasSection />}
             {active === "sarana" && <SaranaSection />}
             {active === "keuangan-master" && <KeuanganMasterSection />}
             {active === "jadwal" && <JadwalSection />}
             {active === "absensi-siswa" && <AbsensiSiswaSection />}
             {active === "penilaian" && <PenilaianSection />}
+            {active === "rekap-nilai" && <RekapNilaiSection />}
             {active === "absensi-pegawai" && <AbsensiPegawaiSection />}
+            {active === "ekstrakurikuler" && <EkstrakurikulerSection />}
             {active === "tagihan" && <TagihanSection />}
             {active === "pembayaran" && <PembayaranSection />}
             {active === "pengeluaran" && <PengeluaranSection />}
