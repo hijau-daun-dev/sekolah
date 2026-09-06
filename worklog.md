@@ -612,3 +612,47 @@ Stage Summary:
 - Sample kwitansi: KWT-20250903-00043, Rp250.000, Debit, siswa "Umar Syukur"
 - Script idempotent: aman dijalankan berulang (cek existing data sebelum create, upsert untuk Penilaian)
 - Untuk menjalankan ulang: `bun scripts/seed-extended.js` lalu `bun scripts/generate-dummy-nilai.js`
+
+---
+Task ID: BACKUP-CHECKPOINT
+Agent: main (data backup)
+Task: Push lengkap semua perubahan ke remote + buat branch checkpoint + dump database sebagai titik pemulihan terakhir.
+
+Work Log:
+- Investigasi working tree: hanya ada perubahan dari commit sebelumnya (sudah clean)
+- Cek db/custom.db: ternyata sudah di-commit di commit 081dc2f (868 KB, hash git a845dfd) — file binary yang sama dengan filesystem
+- Buat scripts/dump-database.js: dump seluruh database SQLite ke SQL INSERT statements
+  - Awalnya pakai better-sqlite3 (npm) — bun crash karena NAPI issue
+  - Rewrite pakai bun:sqlite native module — sukses
+- Jalankan dump: 37 tables, 7428 rows, 1.9 MB → db/dump.sql
+- Buat branch baru: backup/checkpoint-2026-09-06-v2
+- Commit 3 file baru (db/dump.sql, scripts/dump-database.js, bun.lock cleanup)
+- Push 3 branch ke remote origin:
+  * backup/checkpoint-2026-09-06-v2 (NEW — checkpoint titik pemulihan)
+  * main (update dari cd58090 → a8b4f3e, fast-forward)
+  * feature/scd-nilai (sudah di-push sebelumnya, sama dengan main sekarang)
+
+Files Created:
+- db/dump.sql (1978 KB, 7649 lines, 37 tables, 7428 rows)
+- scripts/dump-database.js (76 lines, bun:sqlite native)
+
+Branches di Remote (3 total):
+- main (default) → https://github.com/hijau-daun-dev/sekolah/tree/main
+- feature/scd-nilai → https://github.com/hijau-daun-dev/sekolah/tree/feature/scd-nilai
+- backup/checkpoint-2026-09-06-v2 → https://github.com/hijau-daun-dev/sekolah/tree/backup/checkpoint-2026-09-06-v2
+
+Restore Procedure (kalau database hilang):
+  1. cp db/custom.db db/custom.db.bak  (backup file rusak)
+  2. rm db/custom.db
+  3. bunx prisma db push  (recreate schema kosong)
+  4. bun -e "import {Database} from 'bun:sqlite'; const db = new Database('db/custom.db'); const sql = require('fs').readFileSync('db/dump.sql','utf8'); db.exec(sql); db.close();"
+     ATAU: sqlite3 db/custom.db < db/dump.sql
+
+Stage Summary:
+- 3 layer backup terjamin:
+  1. db/custom.db (binary SQLite, di-commit)
+  2. db/dump.sql (textual SQL dump, di-commit, 7428 rows)
+  3. prisma/schema.prisma (DDL, di-commit sejak lama)
+- 3 branch di remote: main, feature/scd-nilai, backup/checkpoint-2026-09-06-v2
+- Restore bisa dari salah satu sumber saja (dump.sql paling reliable — bisa di-diff, di-partial restore, dll)
+- Token classic ghp_9cmkPZUgb4V... masih aktif sampai di-revoke user. Wajib revoke setelah yakin semua sudah aman.
