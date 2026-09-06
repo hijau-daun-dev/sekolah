@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/session";
 
 /**
  * Resolve which `target` values the current user role is allowed to see.

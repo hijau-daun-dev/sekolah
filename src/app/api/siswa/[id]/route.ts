@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/session";
 
 async function checkOwnership(siswaId: number, sekolahId?: number) {
   const s = await db.siswa.findUnique({ where: { id: siswaId }, select: { sekolahId: true } });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/session";
 import { getAllowedSiswaIds } from "@/lib/auth-helpers";
 import { pembayaranSchema } from "@/lib/schemas";
 

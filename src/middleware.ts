@@ -1,28 +1,21 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
-// Simple auth middleware: check for next-auth.session-token cookie.
-// API routes handle their own auth via auth-guard.
-// Note: NextAuth v5 deprecated `next-auth/middleware`'s `withAuth`. This custom middleware
-// just redirects unauthenticated users to /login (cookie-based check).
-export function middleware(req: NextRequest) {
-  const token =
-    req.cookies.get("authjs.session-token")?.value ||
-    req.cookies.get("__Secure-authjs.session-token")?.value;
+const SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "83e970247b42509f122772eb2e46b6c97f1c308a4855f1da2a4abff8ee724495";
+const JWT_SECRET = new TextEncoder().encode(SECRET);
 
-  if (!token) {
-    const url = new URL("/login", req.url);
-    return NextResponse.redirect(url);
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+  if (path === "/login" || path.startsWith("/api/auth/") || path.startsWith("/api/seed")) {
+    return NextResponse.next();
   }
-  return NextResponse.next();
+  const token = req.cookies.get("simsekolah-token")?.value;
+  if (!token) { const url = new URL("/login", req.url); return NextResponse.redirect(url); }
+  try { await jwtVerify(token, JWT_SECRET); return NextResponse.next(); }
+  catch { const url = new URL("/login", req.url); return NextResponse.redirect(url); }
 }
 
 export const config = {
-  matcher: [
-    // Protect all page routes EXCEPT:
-    // - /login
-    // - /api/* (API uses its own auth via auth-guard helper)
-    // - Next internals & public assets
-    "/((?!login|api|_next/static|_next/image|favicon.ico|uploads|logo.svg|robots.txt).*)",
-  ],
+  matcher: ["/((?!login|_next/static|_next/image|favicon.ico|uploads|logo.svg|robots.txt).*)"],
 };

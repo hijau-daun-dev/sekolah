@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/session";
 import { db } from "@/lib/db";
 
 export type Role = "SUPER_ADMIN" | "TU" | "KEUANGAN" | "GURU" | "SISWA" | "ORTU";

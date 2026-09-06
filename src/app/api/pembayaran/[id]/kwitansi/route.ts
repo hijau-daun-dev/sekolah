@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/session";
 
 const fmtIDRServer = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number.isFinite(n) ? n : 0);

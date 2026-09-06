@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+
 import { useState, useMemo, useEffect } from "react";
 import {
   LayoutDashboard, Building2, Users, GraduationCap, DoorOpen, BookOpen,
@@ -8,7 +8,7 @@ import {
   Megaphone, Image as ImageIcon, Network, Settings, LogOut, Menu, X,
   ChevronDown, User as UserIcon,
 } from "lucide-react";
-import { signOut } from "next-auth/react";
+
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -105,10 +105,17 @@ const titleMap: Record<Tab, { title: string; subtitle: string }> = {
 };
 
 export default function Home() {
-  const { data: session, status } = useSession();
+  const [session, setSession] = useState<{user: {name: string; email: string; role: string; sekolahNama: string | null}} | null>(null);
+  const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<Tab>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.json()).then(d => {
+      if (d.user) setSession({user: d.user});
+      else window.location.href = "/login";
+    }).catch(() => window.location.href = "/login").finally(() => setLoading(false));
+  }, []);
   const role = session?.user?.role || "GURU";
 
   const navByGroup = useMemo(() => {
@@ -126,7 +133,7 @@ export default function Home() {
     setActive("dashboard");
   }
 
-  if (status === "loading") {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-slate-700 animate-spin" />
@@ -251,7 +258,7 @@ export default function Home() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                <DropdownMenuItem onClick={() => async () => { await fetch("/api/auth/logout", {method:"POST"}).catch(()=>{}); window.location.href = "/login"; }}>
                   <LogOut className="h-4 w-4 mr-2" /> Keluar
                 </DropdownMenuItem>
               </DropdownMenuContent>

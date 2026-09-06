@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/session";
 
 async function checkOwnership(ortuId: number, sekolahId?: number) {
   const o = await db.ortu.findUnique({ where: { id: ortuId }, select: { sekolahId: true } });
