@@ -656,3 +656,57 @@ Stage Summary:
 - 3 branch di remote: main, feature/scd-nilai, backup/checkpoint-2026-09-06-v2
 - Restore bisa dari salah satu sumber saja (dump.sql paling reliable — bisa di-diff, di-partial restore, dll)
 - Token classic ghp_9cmkPZUgb4V... masih aktif sampai di-revoke user. Wajib revoke setelah yakin semua sudah aman.
+
+---
+Task ID: SCHEDULER-DAEMON
+Agent: main (auto-backup scheduler)
+Task: Setup backup rutin ke GitHub setiap 6 jam + end-of-day, jalan sebagai daemon.
+
+Work Log:
+- OS cron (crontab/crond) tidak tersedia di environment ini — cari alternatif
+- Library `croner` (Node.js) ditemukan di clawhub, install ke project: `bun add croner`
+- Buat scripts/scheduler.js: daemon yang jalan 24/7 dengan Cron pattern
+  - Backup setiap 6 jam: pattern `0 */6 * * *`
+  - Backup end-of-day: pattern `59 23 * * *`
+  - Backup on-start (configurable): langsung backup sekali saat scheduler start
+  - Heartbeat setiap 1 jam untuk verifikasi scheduler masih hidup
+  - Auto-rotate log file jika > 10 MB
+  - Graceful shutdown pada SIGTERM/SIGINT/SIGHUP
+- Buat scripts/start-services.sh: startup script idempotent yang start dev server + scheduler bersamaan
+- Tambah config di .env.local: BACKUP_INTERVAL_HOURS=6, BACKUP_ON_START=true
+- Test: scheduler jalan sebagai daemon dengan setsid, PID 6711, backup on-start sukses dalam 4.3s
+- Verifikasi: cron pattern terdaftar, end-of-day job terdaftar, log file ter-generate
+
+Files Created:
+- scripts/scheduler.js (110 lines, croner-based daemon)
+- scripts/start-services.sh (47 lines, idempotent service starter)
+
+Files Modified:
+- .env.local: tambah BACKUP_INTERVAL_HOURS + BACKUP_ON_START config
+- package.json: tambah dependency croner@10.0.1
+
+Schedule Aktif:
+- Backup setiap 6 jam (00:00, 06:00, 12:00, 18:00 UTC)
+- Backup end-of-day (23:59 UTC)
+- Backup on-start saat scheduler baru dijalankan
+- Total: 5 backup per hari (jika scheduler terus jalan)
+
+Cara Start/Ulang Scheduler:
+  bash scripts/start-services.sh  # start dev server + scheduler
+  # atau scheduler saja:
+  nohup setsid -f bash -c 'cd /home/z/my-project && exec bun scripts/scheduler.js' < /dev/null > /dev/null 2>&1 &
+
+Cara Cek Status:
+  pgrep -af "bun scripts/scheduler.js"
+  tail -50 scheduler.log
+
+Cara Stop:
+  pkill -f "bun scripts/scheduler.js"
+
+Stage Summary:
+- Daemon scheduler aktif (PID 6711) — akan backup otomatis setiap 6 jam + end-of-day
+- Auto-backup script (scripts/auto-backup.js) sudah teruji, eksekusi 4-5 detik per backup
+- Branch backup/auto-checkpoint di GitHub selalu update ke kondisi terbaru
+- Backup chain: db/custom.db (binary) + db/dump.sql (textual 1.9 MB) + prisma/schema.prisma (DDL) — 3 layer redundancy
+- Log monitoring: scheduler.log (auto-rotate 10 MB) + dev.log
+- Script start-services.sh idempotent: aman dijalankan ulang kalau server reboot
