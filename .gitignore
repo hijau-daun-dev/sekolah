@@ -30,8 +30,14 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+# .env (main config) IS COMMITTED — contains non-secret app config (DATABASE_URL, AUTH_SECRET)
+# .env.local / .env.production / .env.development are git-ignored (per-env overrides with secrets)
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
 
 # vercel
 .vercel
