@@ -1,5 +1,5 @@
 -- Database dump for SIMSEKOLAH
--- Generated: 2026-09-07T18:00:00.586Z
+-- Generated: 2026-09-07T23:59:00.450Z
 -- Source: db/custom.db (SQLite)
 -- Tables: 39
 
