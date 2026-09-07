@@ -68,15 +68,20 @@ export function JadwalSection() {
 function JadwalTab() {
   const [list, setList] = useState<Jadwal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterSekolah, setFilterSekolah] = useState<string>("all");
+  const [filterTahun, setFilterTahun] = useState<string>("all");
   const [filterKelas, setFilterKelas] = useState<string>("all");
   const [filterHari, setFilterHari] = useState<string>("all");
   const [filterTipe, setFilterTipe] = useState<string>("all");
+  const [sekolahOpts, setSekolahOpts] = useState<Array<{ id: number; nama: string; jenjang?: string | null }>>([]);
   const [kelasOpts, setKelasOpts] = useState<KelasOpt[]>([]);
   const [mapelOpts, setMapelOpts] = useState<MapelOpt[]>([]);
   const [pegawaiOpts, setPegawaiOpts] = useState<PegawaiOpt[]>([]);
   const [tahunOpts, setTahunOpts] = useState<TahunOpt[]>([]);
   const [ekskulOpts, setEkskulOpts] = useState<EkskulOpt[]>([]);
   const [tingkatOpts, setTingkatOpts] = useState<TingkatOpt[]>([]);
+  const [userRole, setUserRole] = useState<string>("");
+  const [userSekolahId, setUserSekolahId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Jadwal>>({});
   const [saving, setSaving] = useState(false);
@@ -84,14 +89,42 @@ function JadwalTab() {
   const [exportOpen, setExportOpen] = useState(false);
   const { toast } = useToast();
 
+  // Detect user role & sekolahId from /api/auth/me
   useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.user) {
+          setUserRole(d.user.role || "");
+          setUserSekolahId(d.user.sekolahId ? Number(d.user.sekolahId) : null);
+          // For Super Admin: load all sekolahs for the filter
+          if (d.user.role === "SUPER_ADMIN") {
+            fetch("/api/sekolah?all=true")
+              .then((r) => r.json())
+              .then((list) => { if (Array.isArray(list)) setSekolahOpts(list); })
+              .catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Resolve effective sekolahId: for Super Admin = filterSekolah, else = userSekolahId
+  const effectiveSekolahId = userRole === "SUPER_ADMIN"
+    ? (filterSekolah !== "all" ? Number(filterSekolah) : null)
+    : userSekolahId;
+
+  // Reload dependent dropdowns whenever effectiveSekolahId changes
+  useEffect(() => {
+    if (!userRole) return; // wait until role loaded
+    const sekolahQuery = effectiveSekolahId ? `?sekolahId=${effectiveSekolahId}` : "";
     Promise.all([
-      fetch("/api/kelas").then((r) => r.json()),
-      fetch("/api/mapel").then((r) => r.json()),
-      fetch("/api/pegawai").then((r) => r.json()),
-      fetch("/api/tahun-ajaran").then((r) => r.json()),
-      fetch("/api/ekstrakurikuler?statusAktif=true").then((r) => r.json()),
-      fetch("/api/tingkat?statusAktif=true").then((r) => r.json()),
+      fetch(`/api/kelas${sekolahQuery}`).then((r) => r.json()),
+      fetch(`/api/mapel${sekolahQuery}`).then((r) => r.json()),
+      fetch(`/api/pegawai${sekolahQuery}`).then((r) => r.json()),
+      fetch(`/api/tahun-ajaran${sekolahQuery}`).then((r) => r.json()),
+      fetch(`/api/ekstrakurikuler?statusAktif=true${effectiveSekolahId ? `&sekolahId=${effectiveSekolahId}` : ""}`).then((r) => r.json()),
+      fetch(`/api/tingkat?statusAktif=true${effectiveSekolahId ? `&sekolahId=${effectiveSekolahId}` : ""}`).then((r) => r.json()),
     ]).then(([k, m, p, t, eks, tg]: [KelasOpt[], MapelOpt[], PegawaiOpt[], TahunOpt[], EkskulOpt[], TingkatOpt[]]) => {
       if (Array.isArray(k)) setKelasOpts(k);
       if (Array.isArray(m)) setMapelOpts(m);
@@ -99,13 +132,18 @@ function JadwalTab() {
       if (Array.isArray(t)) setTahunOpts(t);
       if (Array.isArray(eks)) setEkskulOpts(eks);
       if (Array.isArray(tg)) setTingkatOpts(tg);
+      // Reset dependent filters
+      setFilterKelas("all");
+      setFilterTahun("all");
     }).catch(() => {});
-  }, []);
+  }, [userRole, effectiveSekolahId]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      if (effectiveSekolahId) params.set("sekolahId", String(effectiveSekolahId));
+      if (filterTahun !== "all") params.set("tahunAjaranId", filterTahun);
       if (filterKelas !== "all") params.set("kelasId", filterKelas);
       if (filterHari !== "all") params.set("hari", filterHari);
       if (filterTipe !== "all") params.set("tipeJadwal", filterTipe);
@@ -117,7 +155,7 @@ function JadwalTab() {
     } finally {
       setLoading(false);
     }
-  }, [filterKelas, filterHari, filterTipe, toast]);
+  }, [effectiveSekolahId, filterTahun, filterKelas, filterHari, filterTipe, toast]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -267,30 +305,87 @@ function JadwalTab() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Select value={filterTipe} onValueChange={setFilterTipe}>
-            <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Tipe" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Tipe</SelectItem>
-              {TIPE_OPTS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterKelas} onValueChange={setFilterKelas}>
-            <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Semua Kelas" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Kelas</SelectItem>
-              {kelasOpts.map((k) => (
-                <SelectItem key={k.id} value={String(k.id)}>{k.tingkat?.nama || ""} {k.nama}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterHari} onValueChange={setFilterHari}>
-            <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Semua Hari" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Hari</SelectItem>
-              {HARI_LIST.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        {/* Filter Bar — Sekolah (Super Admin only) + Tahun Ajaran + Tipe + Kelas + Hari */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <SearchX className="h-3.5 w-3.5" />
+            <span className="font-medium">Filter Jadwal:</span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+            {/* Filter Sekolah — only for Super Admin */}
+            {userRole === "SUPER_ADMIN" && (
+              <Select value={filterSekolah} onValueChange={setFilterSekolah}>
+                <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Semua Sekolah" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">🌐 Semua Sekolah</SelectItem>
+                  {sekolahOpts.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.nama}{s.jenjang ? ` (${s.jenjang})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={filterTahun} onValueChange={setFilterTahun}>
+              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Semua Tahun Ajaran" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Tahun Ajaran</SelectItem>
+                {tahunOpts.map((t) => (
+                  <SelectItem key={t.id} value={String(t.id)}>
+                    {t.nama}{t.statusAktif ? " (Aktif)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterTipe} onValueChange={setFilterTipe}>
+              <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Tipe" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Tipe</SelectItem>
+                {TIPE_OPTS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterKelas} onValueChange={setFilterKelas}>
+              <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Semua Kelas" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Kelas</SelectItem>
+                {kelasOpts.map((k) => (
+                  <SelectItem key={k.id} value={String(k.id)}>{k.tingkat?.nama || ""} {k.nama}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterHari} onValueChange={setFilterHari}>
+              <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Semua Hari" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Hari</SelectItem>
+                {HARI_LIST.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {/* Reset button */}
+            {(filterSekolah !== "all" || filterTahun !== "all" || filterKelas !== "all" || filterHari !== "all" || filterTipe !== "all") && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setFilterSekolah("all");
+                  setFilterTahun("all");
+                  setFilterKelas("all");
+                  setFilterHari("all");
+                  setFilterTipe("all");
+                }}
+                className="text-xs"
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Reset
+              </Button>
+            )}
+          </div>
+          {/* Active filter indicator */}
+          {(userRole === "SUPER_ADMIN" && filterSekolah !== "all") && (
+            <div className="text-xs text-slate-500">
+              Menampilkan jadwal untuk sekolah: <span className="font-semibold text-slate-700">
+                {sekolahOpts.find((s) => String(s.id) === filterSekolah)?.nama || filterSekolah}
+              </span>
+            </div>
+          )}
         </div>
 
         {filterKelas === "all" && list.length > 0 && (

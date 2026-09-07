@@ -15,9 +15,12 @@ export async function GET(req: NextRequest) {
     const hari = url.searchParams.get("hari");
     const tipeJadwal = url.searchParams.get("tipeJadwal");
     const tahunAjaranId = url.searchParams.get("tahunAjaranId");
+    // Allow Super Admin to override sekolahId via query param
+    const qSekolahId = url.searchParams.get("sekolahId");
+    const effectiveSekolahId = sekolahId ?? (qSekolahId ? Number(qSekolahId) : undefined);
 
-    // Filter by sekolahId via kelas.sekolahId OR ekstrakurikuler.sekolahId
-    const whereKelas = sekolahId ? { sekolahId } : {};
+    // Filter by sekolahId via kelas.sekolahId
+    const whereKelas = effectiveSekolahId ? { sekolahId: effectiveSekolahId } : {};
     const where: Record<string, unknown> = {};
     if (kelasId) where.kelasId = Number(kelasId);
     if (pegawaiId) where.pegawaiId = Number(pegawaiId);
