@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Jadwal Pelajaran - 6A</title>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 12mm 14mm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Times New Roman", Times, serif;
+    color: #000;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+  .page {
+    width: 100%;
+    margin: 0 auto 20px auto;
+    page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  /* ===== KOP SEKOLAH ===== */
+  .kop-sekolah {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 4px;
+  }
+  .logo, .logo-placeholder {
+    width: 70px;
+    height: 70px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+  .logo-placeholder {
+    border: 1px dashed #999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #999;
+    font-weight: bold;
+  }
+  .kop-text {
+    flex: 1;
+    text-align: center;
+  }
+  .kop-yayasan {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .kop-nama {
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 2px 0;
+  }
+  .kop-alamat {
+    font-size: 10px;
+    font-style: italic;
+  }
+  .kop-kontak {
+    font-size: 10px;
+    font-style: italic;
+    margin-top: 1px;
+  }
+  .garis-pembatas {
+    border-bottom: 3px double #000;
+    margin: 4px 0 16px 0;
+  }
+
+  /* ===== TITLE ===== */
+  .judul-utama {
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .judul-sub {
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+  }
+
+  /* ===== INFO BAR ===== */
+  .info-bar {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+  .info-bar td { padding: 2px 4px; }
+  .info-label { font-weight: bold; width: 60px; }
+  .info-sep { width: 8px; }
+  .info-value { width: 35%; }
+  .info-spacer { width: 4%; }
+
+  /* ===== MATRIX TABLE ===== */
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    table-layout: fixed;
+  }
+  .matrix-table th, .matrix-table td {
+    border: 1px solid #000;
+    padding: 4px 6px;
+    vertical-align: middle;
+    word-wrap: break-word;
+  }
+  .matrix-table thead th {
+    background: #e2e8f0;
+    font-weight: bold;
+    text-align: center;
+    text-transform: uppercase;
+    font-size: 11px;
+    padding: 6px 4px;
+  }
+  .col-no { width: 5%; }
+  .col-time { width: 14%; }
+  .col-day { width: 13.5%; }
+
+  .cell-no, .cell-time {
+    text-align: center;
+    font-weight: 600;
+  }
+  .cell-time { font-size: 10.5px; }
+
+  /* Subject cell content */
+  .cell-subject, .cell-ekskul, .cell-khusul, .cell-empty {
+    text-align: center;
+  }
+  .subj-name {
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+  .subj-teacher {
+    font-size: 9.5px;
+    font-style: italic;
+    color: #444;
+    margin-top: 2px;
+    line-height: 1.1;
+  }
+
+  /* Color coding */
+  .cell-ekskul {
+    background: #D6E8D0; /* light green */
+  }
+  .cell-khusus {
+    background: #FFE4B5; /* light orange/peach */
+  }
+  .cell-empty {
+    background: #fafafa;
+  }
+
+  /* Break row */
+  .break-row .cell-break {
+    background: #FFDAB9;
+    text-align: center;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 6px;
+  }
+
+  /* ===== SIGNATURE AREA ===== */
+  .signature-area {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 28px;
+    padding: 0 20px;
+    font-size: 12px;
+  }
+  .signature-col {
+    width: 45%;
+    text-align: left;
+  }
+  .signature-col:last-child {
+    text-align: left;
+  }
+  .sig-label { line-height: 1.5; }
+  .sig-space { height: 50px; }
+  .sig-name {
+    font-weight: bold;
+    text-decoration: underline;
+  }
+  .sig-nip {
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  /* ===== WATERMARK ===== */
+  .watermark {
+    text-align: center;
+    font-size: 10px;
+    font-style: italic;
+    color: #888;
+    margin-top: 16px;
+  }
+
+  /* ===== PRINT BUTTON (hidden on print) ===== */
+  .print-btn {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    background: #1e293b;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+  }
+  .print-btn:hover { background: #334155; }
+
+  @media print {
+    .print-btn { display: none; }
+    @page { size: A4 landscape; margin: 12mm 14mm; }
+  }
+
+  @media screen {
+    body { background: #e5e7eb; padding: 20px; }
+    .page {
+      max-width: 1100px;
+      background: white;
+      padding: 30px 40px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-radius: 4px;
+    }
+  }
+</style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+  
+      <div class="page">
+        <!-- Header / Kop Sekolah -->
+        <div class="kop-sekolah">
+          <div class="logo-placeholder">LOGO</div>
+          <div class="kop-text">
+            <div class="kop-yayasan">Yayasan Pendidikan Al-Hidayah</div>
+            <div class="kop-nama">MI Al-Hidayah</div>
+            <div class="kop-alamat">Jl. Pondok Aren No. 1, Kota Tangerang Selatan</div>
+            <div class="kop-kontak">
+              Telp: (021) 7456789
+               &bull; Email: info@mialhidayah.sch.id
+               &bull; Web: https://mialhidayah.sch.id
+            </div>
+          </div>
+        </div>
+        <div class="garis-pembatas"></div>
+
+        <!-- Title -->
+        <div class="judul-utama">JADWAL PELAJARAN</div>
+        <div class="judul-sub">TAHUN PELAJARAN 2025/2026</div>
+
+        <!-- Info Bar -->
+        <table class="info-bar">
+          <tr>
+            <td class="info-label">KELAS</td>
+            <td class="info-sep">:</td>
+            <td class="info-value">6A (Tingkat 6)</td>
+            <td class="info-spacer"></td>
+            <td class="info-label">SEMESTER</td>
+            <td class="info-sep">:</td>
+            <td class="info-value">Ganjil / Genap</td>
+          </tr>
+        </table>
+
+        <!-- Matrix Table -->
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th class="col-no">NO</th>
+              <th class="col-time">HARI / WAKTU</th>
+              <th class="col-day">SENIN</th><th class="col-day">SELASA</th><th class="col-day">RABU</th><th class="col-day">KAMIS</th><th class="col-day">JUMAT</th><th class="col-day">SABTU</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+        <tr>
+          <td class="cell-no">1</td>
+          <td class="cell-time">06:30 - 07:00</td>
+          <td class="cell-khusus"><div class="subj-name">Upacara Bendera</div><div class="subj-teacher">H. Abdullah, S.Pd.I.</div></td><td class="cell-khusus"><div class="subj-name">Apel Pagi</div><div class="subj-teacher">H. Abdullah, S.Pd.I.</div></td><td class="cell-khusus"><div class="subj-name">Apel Pagi</div><div class="subj-teacher">H. Abdullah, S.Pd.I.</div></td><td class="cell-khusus"><div class="subj-name">Apel/Senam Pagi</div><div class="subj-teacher">H. Abdullah, S.Pd.I.</div></td><td class="cell-khusus"><div class="subj-name">Jumat Bersih</div><div class="subj-teacher">H. Abdullah, S.Pd.I.</div></td><td class="cell-empty"></td>
+        </tr>
+        <tr>
+          <td class="cell-no">2</td>
+          <td class="cell-time">07:00 - 07:40</td>
+          <td class="cell-subject"><div class="subj-name">Matematika</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Ilmu Pengetahuan Alam</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Matematika</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-empty"></td>
+        </tr>
+        <tr>
+          <td class="cell-no">3</td>
+          <td class="cell-time">07:40 - 08:20</td>
+          <td class="cell-subject"><div class="subj-name">Matematika</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Ilmu Pengetahuan Alam</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Matematika</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-empty"></td>
+        </tr>
+        <tr>
+          <td class="cell-no">4</td>
+          <td class="cell-time">08:20 - 09:00</td>
+          <td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Matematika</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Matematika</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Matematika</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-empty"></td>
+        </tr>
+          <tr class="break-row">
+            <td class="cell-no">5</td>
+            <td class="cell-time">09:00 - 09:15</td>
+            <td colspan="6" class="cell-break">ISTIRAHAT</td>
+          </tr>
+        <tr>
+          <td class="cell-no">6</td>
+          <td class="cell-time">09:15 - 09:55</td>
+          <td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Ilmu Pengetahuan Alam</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Inggris</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-ekskul"><div class="subj-name">Pramuka</div><div class="subj-teacher">Hj. Siti Khodijah, S.Pd.</div></td><td class="cell-empty"></td>
+        </tr>
+        <tr>
+          <td class="cell-no">7</td>
+          <td class="cell-time">09:55 - 10:35</td>
+          <td class="cell-empty"></td><td class="cell-subject"><div class="subj-name">Ilmu Pengetahuan Alam</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Inggris</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Ilmu Pengetahuan Alam</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-ekskul"><div class="subj-name">Pramuka</div><div class="subj-teacher">Hj. Siti Khodijah, S.Pd.</div></td><td class="cell-empty"></td>
+        </tr>
+          <tr class="break-row">
+            <td class="cell-no">8</td>
+            <td class="cell-time">10:35 - 10:45</td>
+            <td colspan="6" class="cell-break">ISTIRAHAT</td>
+          </tr>
+        <tr>
+          <td class="cell-no">9</td>
+          <td class="cell-time">10:45 - 11:25</td>
+          <td class="cell-subject"><div class="subj-name">Ilmu Pengetahuan Alam</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Inggris</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Ilmu Pengetahuan Alam</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-empty"></td><td class="cell-empty"></td>
+        </tr>
+        <tr>
+          <td class="cell-no">10</td>
+          <td class="cell-time">11:25 - 12:05</td>
+          <td class="cell-subject"><div class="subj-name">Bahasa Inggris</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Inggris</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Indonesia</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-subject"><div class="subj-name">Bahasa Inggris</div><div class="subj-teacher">Ustadz Ahmad Fauzi, S.Pd.</div></td><td class="cell-empty"></td><td class="cell-empty"></td>
+        </tr>
+          </tbody>
+        </table>
+
+        <!-- Footer / Signatures -->
+        <div class="signature-area">
+          <div class="signature-col">
+            <div class="sig-label">Mengetahui,</div>
+            <div class="sig-label">Kepala Sekolah</div>
+            <div class="sig-space">&nbsp;</div>
+            <div class="sig-name"><u>H. Abdullah, S.Pd.I.</u></div>
+            <div class="sig-nip">NIP. 196801011995031002</div>
+          </div>
+          <div class="signature-col">
+            <div class="sig-label">Jl. Pondok Aren No. 1, 7 September 2026</div>
+            <div class="sig-label">Wali Kelas 6A</div>
+            <div class="sig-space">&nbsp;</div>
+            <div class="sig-name"><u>Ustadz Ahmad Fauzi, S.Pd.</u></div>
+            <div class="sig-nip">NIP. 198005202005011002</div>
+          </div>
+        </div>
+
+        <div class="watermark">Jadwal Pelajaran</div>
+      </div>
+  <script>
+    // Auto-trigger print after load (optional)
+    // window.onload = () => setTimeout(() => window.print(), 500);
+  </script>
+</body>
+</html>
