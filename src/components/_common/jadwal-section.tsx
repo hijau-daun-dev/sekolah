@@ -68,12 +68,14 @@ export function JadwalSection() {
 function JadwalTab() {
   const [list, setList] = useState<Jadwal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterJenjang, setFilterJenjang] = useState<string>("all");
   const [filterSekolah, setFilterSekolah] = useState<string>("all");
   const [filterTahun, setFilterTahun] = useState<string>("all");
   const [filterKelas, setFilterKelas] = useState<string>("all");
   const [filterHari, setFilterHari] = useState<string>("all");
   const [filterTipe, setFilterTipe] = useState<string>("all");
-  const [sekolahOpts, setSekolahOpts] = useState<Array<{ id: number; nama: string; jenjang?: string | null }>>([]);
+  const [jenjangOpts, setJenjangOpts] = useState<Array<{ id: number; kode: string; nama: string; urutan: number }>>([]);
+  const [sekolahOpts, setSekolahOpts] = useState<Array<{ id: number; nama: string; jenjang?: string | null; jenjangId?: number | null; jenjangRef?: { id: number; kode: string; nama: string } | null }>>([]);
   const [kelasOpts, setKelasOpts] = useState<KelasOpt[]>([]);
   const [mapelOpts, setMapelOpts] = useState<MapelOpt[]>([]);
   const [pegawaiOpts, setPegawaiOpts] = useState<PegawaiOpt[]>([]);
@@ -97,11 +99,15 @@ function JadwalTab() {
         if (d?.user) {
           setUserRole(d.user.role || "");
           setUserSekolahId(d.user.sekolahId ? Number(d.user.sekolahId) : null);
-          // For Super Admin: load all sekolahs for the filter
+          // For Super Admin: load all sekolahs + jenjang for the filter
           if (d.user.role === "SUPER_ADMIN") {
             fetch("/api/sekolah?all=true")
               .then((r) => r.json())
               .then((list) => { if (Array.isArray(list)) setSekolahOpts(list); })
+              .catch(() => {});
+            fetch("/api/jenjang?statusAktif=true")
+              .then((r) => r.json())
+              .then((list) => { if (Array.isArray(list)) setJenjangOpts(list); })
               .catch(() => {});
           }
         }
@@ -109,10 +115,26 @@ function JadwalTab() {
       .catch(() => {});
   }, []);
 
+  // Reset filterSekolah when filterJenjang changes (handled in setter)
+  const handleSetFilterJenjang = (v: string) => {
+    setFilterJenjang(v);
+    setFilterSekolah("all");
+  };
+
   // Resolve effective sekolahId: for Super Admin = filterSekolah, else = userSekolahId
   const effectiveSekolahId = userRole === "SUPER_ADMIN"
     ? (filterSekolah !== "all" ? Number(filterSekolah) : null)
     : userSekolahId;
+
+  // Filtered sekolah by jenjang (client-side)
+  const filteredSekolahOpts = filterJenjang !== "all"
+    ? sekolahOpts.filter((s) => {
+        const sJenjangId = s.jenjangId ?? s.jenjangRef?.id;
+        if (sJenjangId) return String(sJenjangId) === filterJenjang;
+        const jOpt = jenjangOpts.find((j) => String(j.id) === filterJenjang);
+        return jOpt && s.jenjang === jOpt.kode;
+      })
+    : sekolahOpts;
 
   // Reload dependent dropdowns whenever effectiveSekolahId changes
   useEffect(() => {
@@ -312,13 +334,26 @@ function JadwalTab() {
             <span className="font-medium">Filter Jadwal:</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
-            {/* Filter Sekolah — only for Super Admin */}
+            {/* Filter Jenjang + Sekolah — only for Super Admin */}
+            {userRole === "SUPER_ADMIN" && (
+              <Select value={filterJenjang} onValueChange={handleSetFilterJenjang}>
+                <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Jenjang" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">🌐 Semua Jenjang</SelectItem>
+                  {jenjangOpts.map((j) => (
+                    <SelectItem key={j.id} value={String(j.id)}>
+                      {j.kode} — {j.nama}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {userRole === "SUPER_ADMIN" && (
               <Select value={filterSekolah} onValueChange={setFilterSekolah}>
                 <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Semua Sekolah" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">🌐 Semua Sekolah</SelectItem>
-                  {sekolahOpts.map((s) => (
+                  <SelectItem value="all">🏫 Semua Sekolah</SelectItem>
+                  {filteredSekolahOpts.map((s) => (
                     <SelectItem key={s.id} value={String(s.id)}>
                       {s.nama}{s.jenjang ? ` (${s.jenjang})` : ""}
                     </SelectItem>
@@ -361,11 +396,12 @@ function JadwalTab() {
               </SelectContent>
             </Select>
             {/* Reset button */}
-            {(filterSekolah !== "all" || filterTahun !== "all" || filterKelas !== "all" || filterHari !== "all" || filterTipe !== "all") && (
+            {(filterJenjang !== "all" || filterSekolah !== "all" || filterTahun !== "all" || filterKelas !== "all" || filterHari !== "all" || filterTipe !== "all") && (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => {
+                  setFilterJenjang("all");
                   setFilterSekolah("all");
                   setFilterTahun("all");
                   setFilterKelas("all");

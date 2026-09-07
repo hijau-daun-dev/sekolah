@@ -22,7 +22,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ImageUpload } from "./image-upload";
 import { fmtIDR, fmtDateDisplay, toDateISO } from "./_format";
-import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
+import { useSekolahFilter, JenjangSekolahFilterDropdowns } from "@/lib/use-sekolah-filter";
 
 interface PosAnggaranOpt { id: number; nama: string; kode?: string | null; jenis: string }
 interface Pengeluaran {
@@ -217,11 +217,16 @@ export function PengeluaranSection() {
             <span className="font-medium">Filter Pengeluaran:</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
-            <SekolahFilterDropdown
+            <JenjangSekolahFilterDropdowns
               isSuperAdmin={sekolahFilter.isSuperAdmin}
+              jenjangOpts={sekolahFilter.jenjangOpts}
+              filterJenjang={sekolahFilter.filterJenjang}
+              setFilterJenjang={sekolahFilter.setFilterJenjang}
+              sekolahOpts={sekolahFilter.sekolahOpts}
               filterSekolah={sekolahFilter.filterSekolah}
               setFilterSekolah={sekolahFilter.setFilterSekolah}
-              sekolahOpts={sekolahFilter.sekolahOpts}
+              classNameJenjang="w-full sm:w-40 h-9"
+              classNameSekolah="w-full sm:w-56 h-9"
             />
             <Select value={filterPos} onValueChange={setFilterPos}>
               <SelectTrigger className="w-full sm:w-56 h-9"><SelectValue placeholder="Pos Anggaran" /></SelectTrigger>

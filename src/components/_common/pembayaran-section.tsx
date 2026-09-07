@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { fmtIDR, fmtDateDisplay } from "./_format";
-import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
+import { useSekolahFilter, JenjangSekolahFilterDropdowns } from "@/lib/use-sekolah-filter";
 
 interface Pembayaran {
   id: number;
@@ -201,11 +201,16 @@ export function PembayaranSection() {
             <span className="font-medium">Filter Pembayaran:</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
-            <SekolahFilterDropdown
+            <JenjangSekolahFilterDropdowns
               isSuperAdmin={sekolahFilter.isSuperAdmin}
+              jenjangOpts={sekolahFilter.jenjangOpts}
+              filterJenjang={sekolahFilter.filterJenjang}
+              setFilterJenjang={sekolahFilter.setFilterJenjang}
+              sekolahOpts={sekolahFilter.sekolahOpts}
               filterSekolah={sekolahFilter.filterSekolah}
               setFilterSekolah={sekolahFilter.setFilterSekolah}
-              sekolahOpts={sekolahFilter.sekolahOpts}
+              classNameJenjang="w-full sm:w-40 h-9"
+              classNameSekolah="w-full sm:w-56 h-9"
             />
             <div className="relative flex-1 min-w-[200px]">
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

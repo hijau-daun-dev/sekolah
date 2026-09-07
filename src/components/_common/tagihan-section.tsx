@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { fmtIDR, fmtDateDisplay } from "./_format";
-import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
+import { useSekolahFilter, JenjangSekolahFilterDropdowns } from "@/lib/use-sekolah-filter";
 
 interface TahunOpt { id: number; nama: string; statusAktif: boolean }
 interface JenisOpt { id: number; nama: string }
@@ -183,11 +183,16 @@ export function TagihanSection() {
             <span className="font-medium">Filter Tagihan:</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
-            <SekolahFilterDropdown
+            <JenjangSekolahFilterDropdowns
               isSuperAdmin={sekolahFilter.isSuperAdmin}
+              jenjangOpts={sekolahFilter.jenjangOpts}
+              filterJenjang={sekolahFilter.filterJenjang}
+              setFilterJenjang={sekolahFilter.setFilterJenjang}
+              sekolahOpts={sekolahFilter.sekolahOpts}
               filterSekolah={sekolahFilter.filterSekolah}
               setFilterSekolah={sekolahFilter.setFilterSekolah}
-              sekolahOpts={sekolahFilter.sekolahOpts}
+              classNameJenjang="w-full sm:w-40 h-9"
+              classNameSekolah="w-full sm:w-56 h-9"
             />
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-full sm:w-40 h-9"><SelectValue /></SelectTrigger>

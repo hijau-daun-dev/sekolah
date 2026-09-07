@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { toDateISO } from "./_format";
-import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
+import { useSekolahFilter, JenjangSekolahFilterDropdowns } from "@/lib/use-sekolah-filter";
 
 interface KelasOpt { id: number; nama: string; tingkat?: { nama: string } | null }
 interface SiswaOpt {
@@ -151,16 +151,17 @@ export function AbsensiSiswaSection() {
           </div>
           <div className="flex flex-col sm:flex-row gap-2 flex-wrap items-end">
             {sekolahFilter.isSuperAdmin && (
-              <div className="flex-1 min-w-[180px]">
-                <Label className="text-xs">Sekolah</Label>
-                <SekolahFilterDropdown
-                  isSuperAdmin={sekolahFilter.isSuperAdmin}
-                  filterSekolah={sekolahFilter.filterSekolah}
-                  setFilterSekolah={sekolahFilter.setFilterSekolah}
-                  sekolahOpts={sekolahFilter.sekolahOpts}
-                  className="w-full"
-                />
-              </div>
+              <JenjangSekolahFilterDropdowns
+                isSuperAdmin={sekolahFilter.isSuperAdmin}
+                jenjangOpts={sekolahFilter.jenjangOpts}
+                filterJenjang={sekolahFilter.filterJenjang}
+                setFilterJenjang={sekolahFilter.setFilterJenjang}
+                sekolahOpts={sekolahFilter.sekolahOpts}
+                filterSekolah={sekolahFilter.filterSekolah}
+                setFilterSekolah={sekolahFilter.setFilterSekolah}
+                classNameJenjang="w-full sm:w-40"
+                classNameSekolah="w-full sm:w-56"
+              />
             )}
             <div className="flex-1 min-w-[180px]">
               <Label className="text-xs">Kelas</Label>
