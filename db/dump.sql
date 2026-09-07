@@ -1,5 +1,5 @@
 -- Database dump for SIMSEKOLAH
--- Generated: 2026-09-07T07:27:15.904Z
+-- Generated: 2026-09-07T12:00:00.203Z
 -- Source: db/custom.db (SQLite)
 -- Tables: 39
 
@@ -979,13 +979,13 @@ INSERT INTO "JenisPembayaran" ("id", "sekolahId", "nama", "keterangan", "statusA
 
 -- Table: Jenjang (7 rows)
 DELETE FROM "Jenjang";
-INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (1, 'SD', 'Sekolah Dasar', 1, 'Sekolah Dasar (negeri/swasta)', 1, 1788765645458);
+INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (1, 'SD', 'Sekolah Dasar', 1, 'Sekolah Dasar (negeri/swasta)', 0, 1788765645458);
 INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (2, 'MI', 'Madrasah Ibtidaiyah', 1, 'Setara SD, bawah Kemenag', 1, 1788765645459);
-INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (3, 'SMP', 'Sekolah Menengah Pertama', 2, 'Sekolah Menengah Pertama (negeri/swasta)', 1, 1788765645461);
+INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (3, 'SMP', 'Sekolah Menengah Pertama', 2, 'Sekolah Menengah Pertama (negeri/swasta)', 0, 1788765645461);
 INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (4, 'MTs', 'Madrasah Tsanawiyah', 2, 'Setara SMP, bawah Kemenag', 1, 1788765645462);
-INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (5, 'MA', 'Madrasah Aliyah', 3, 'Setara SMA, bawah Kemenag', 1, 1788765645464);
-INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (6, 'SMA', 'Sekolah Menengah Atas', 3, 'Sekolah Menengah Atas (negeri/swasta)', 1, 1788765645465);
-INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (7, 'SMK', 'Sekolah Menengah Kejuruan', 3, 'Sekolah Menengah Kejuruan (negeri/swasta)', 1, 1788765645466);
+INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (5, 'MA', 'Madrasah Aliyah', 3, 'Setara SMA, bawah Kemenag', 0, 1788765645464);
+INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (6, 'SMA', 'Sekolah Menengah Atas', 3, 'Sekolah Menengah Atas (negeri/swasta)', 0, 1788765645465);
+INSERT INTO "Jenjang" ("id", "kode", "nama", "urutan", "keterangan", "statusAktif", "createdAt") VALUES (7, 'SMK', 'Sekolah Menengah Kejuruan', 3, 'Sekolah Menengah Kejuruan (negeri/swasta)', 0, 1788765645466);
 
 -- Table: Jurusan (0 rows)
 DELETE FROM "Jurusan";
@@ -7635,7 +7635,7 @@ INSERT INTO "TingkatMapel" ("id", "tingkatId", "mapelId", "jpPerMinggu", "status
 
 -- Table: User (7 rows)
 DELETE FROM "User";
-INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (1, 'admin@alhidayah.sch.id', '$2b$10$9LOZlNGEvaPmSBjWMSd/o.7qLvfaRqwAuwarOfauklRFW8/1ZjbKG', 'Super Admin Yayasan', 6, 1, NULL, NULL, NULL, 1, 1788765843815, 1788698692221, 1788765843817);
+INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (1, 'admin@alhidayah.sch.id', '$2b$10$9LOZlNGEvaPmSBjWMSd/o.7qLvfaRqwAuwarOfauklRFW8/1ZjbKG', 'Super Admin Yayasan', 6, 1, NULL, NULL, NULL, 1, 1788772139457, 1788698692221, 1788772139458);
 INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (2, 'tu@mialhidayah.sch.id', '$2b$10$vn6Al1Qmxy.P7371/iifBOa6fHTz8NPGQHOFjevfNO3gzUlNIninC', 'Admin TU MI Al-Hidayah', 1, 1, NULL, NULL, NULL, 1, NULL, 1788698692308, 1788698692308);
 INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (3, 'keuangan@mialhidayah.sch.id', '$2b$10$M0dhbyR.uVjRHpSzYbJpHOObiE3a8Xv/JfYxHqJ4e7F59LdevEuou', 'Admin Keuangan MI Al-Hidayah', 2, 1, NULL, NULL, NULL, 1, NULL, 1788698692309, 1788698692309);
 INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (4, 'guru@mialhidayah.sch.id', '$2b$10$Npn4m15pX6SNrKWJV13niOWBnoe5fHtYfLVXMcSxwM4CT3S39L0C2', 'Ustadz Ahmad Fauzi, S.Pd.', 3, 1, 3, NULL, NULL, 1, NULL, 1788698692310, 1788698692310);
