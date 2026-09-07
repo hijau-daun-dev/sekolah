@@ -26,7 +26,11 @@ interface Sekolah {
   nama: string;
   npsn?: string | null;
   jenjang?: string | null;
+  jenjangId?: number | null;
+  jenjangRef?: { id: number; kode: string; nama: string } | null;
   yayasan?: string | null;
+  yayasanId?: number | null;
+  yayasanRef?: { id: number; nama: string; logoUrl?: string | null } | null;
   alamat?: string | null;
   logoUrl?: string | null;
   telepon?: string | null;
@@ -38,7 +42,9 @@ interface Sekolah {
   statusAktif?: boolean;
 }
 
-interface SekolahOpt { id: number; nama: string; jenjang?: string | null }
+interface SekolahOpt { id: number; nama: string; jenjang?: string | null; jenjangRef?: { kode: string; nama: string } | null }
+interface JenjangOpt { id: number; kode: string; nama: string; urutan: number }
+interface YayasanOpt { id: number; nama: string; logoUrl?: string | null }
 interface RiwayatKepala {
   id: number;
   pegawaiId: number;
@@ -67,6 +73,8 @@ export function SekolahSection() {
   const [sekolahId, setSekolahId] = useState<string>("");
   const [data, setData] = useState<Sekolah | null>(null);
   const [loading, setLoading] = useState(true);
+  const [jenjangOpts, setJenjangOpts] = useState<JenjangOpt[]>([]);
+  const [yayasanOpts, setYayasanOpts] = useState<YayasanOpt[]>([]);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -90,6 +98,13 @@ export function SekolahSection() {
         setSekolahList(d);
         if (d.length > 0 && !sekolahId) setSekolahId(String(d[0].id));
       }
+    }).catch(() => {});
+    // Load master jenjang + yayasan for dropdowns
+    fetch("/api/jenjang?statusAktif=true").then((r) => r.json()).then((d: JenjangOpt[]) => {
+      if (Array.isArray(d)) setJenjangOpts(d);
+    }).catch(() => {});
+    fetch("/api/yayasan").then((r) => r.json()).then((d: YayasanOpt[]) => {
+      if (Array.isArray(d)) setYayasanOpts(d);
     }).catch(() => {});
   }, []);
 
@@ -175,16 +190,67 @@ export function SekolahSection() {
               </div>
               <div>
                 <Label htmlFor="jenjang">Jenjang</Label>
-                <Select value={data?.jenjang || "SD"} onValueChange={(v) => update("jenjang", v)}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {JENJANG_OPTS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                {jenjangOpts.length > 0 ? (
+                  <Select
+                    value={data?.jenjangId ? String(data.jenjangId) : ""}
+                    onValueChange={(v) => {
+                      const opt = jenjangOpts.find((j) => j.id === Number(v));
+                      update("jenjangId", Number(v));
+                      if (opt) update("jenjang", opt.kode); // sync legacy field
+                    }}
+                  >
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Pilih jenjang" /></SelectTrigger>
+                    <SelectContent>
+                      {jenjangOpts.map((j) => (
+                        <SelectItem key={j.id} value={String(j.id)}>
+                          <Badge className="bg-slate-700 text-white text-[10px] mr-2">{j.kode}</Badge>
+                          {j.nama}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={data?.jenjang || "SD"} onValueChange={(v) => update("jenjang", v)}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {JENJANG_OPTS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-[11px] text-slate-500 mt-1">
+                  💡 Kelola daftar jenjang di menu <strong>Master Jenjang</strong>
+                </p>
               </div>
               <div className="sm:col-span-2">
                 <Label htmlFor="yayasan">Yayasan</Label>
-                <Input id="yayasan" value={data?.yayasan || ""} onChange={(e) => update("yayasan", e.target.value)} placeholder="Yayasan Pendidikan ..." />
+                {yayasanOpts.length > 0 ? (
+                  <Select
+                    value={data?.yayasanId ? String(data.yayasanId) : "_none"}
+                    onValueChange={(v) => {
+                      if (v === "_none") {
+                        update("yayasanId", null);
+                        update("yayasan", "");
+                      } else {
+                        const opt = yayasanOpts.find((y) => y.id === Number(v));
+                        update("yayasanId", Number(v));
+                        if (opt) update("yayasan", opt.nama); // sync legacy field
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Pilih yayasan" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">(Tanpa yayasan)</SelectItem>
+                      {yayasanOpts.map((y) => (
+                        <SelectItem key={y.id} value={String(y.id)}>{y.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input id="yayasan" value={data?.yayasan || ""} onChange={(e) => update("yayasan", e.target.value)} placeholder="Yayasan Pendidikan ..." />
+                )}
+                <p className="text-[11px] text-slate-500 mt-1">
+                  💡 Kelola daftar yayasan di menu <strong>Master Yayasan</strong>
+                </p>
               </div>
               <div>
                 <Label htmlFor="telepon">Telepon</Label>

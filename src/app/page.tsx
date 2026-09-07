@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Building2, Users, GraduationCap, DoorOpen, BookOpen,
   CalendarDays, ClipboardCheck, FileBarChart, Wallet, PackageOpen,
   Megaphone, Image as ImageIcon, Network, Settings, LogOut, Menu, X,
-  ChevronDown, User as UserIcon, Layers, ClipboardList, Trophy,
+  ChevronDown, User as UserIcon, Layers, ClipboardList, Trophy, Landmark,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -39,9 +39,11 @@ import { PengumumanSection } from "@/components/_common/pengumuman-section";
 import { GaleriSection } from "@/components/_common/galeri-section";
 import { OrgStructureSection } from "@/components/_common/org-structure-section";
 import { UserManagementSection } from "@/components/_common/user-management-section";
+import { YayasanSection } from "@/components/_common/yayasan-section";
+import { JenjangSection } from "@/components/_common/jenjang-section";
 
 type Tab =
-  | "dashboard" | "sekolah" | "pegawai" | "siswa" | "ortu"
+  | "dashboard" | "sekolah" | "yayasan" | "jenjang" | "pegawai" | "siswa" | "ortu"
   | "tingkat" | "akademik" | "kelas" | "sarana" | "keuangan-master"
   | "jadwal" | "absensi-siswa" | "penilaian" | "rekap-nilai" | "absensi-pegawai" | "ekstrakurikuler"
   | "tagihan" | "pembayaran" | "pengeluaran"
@@ -60,6 +62,8 @@ interface NavItem {
 const allNav: NavItem[] = [
   { id: "dashboard", label: "Dashboard", desc: "Ringkasan & statistik", icon: LayoutDashboard, group: "Utama", roles: ["SUPER_ADMIN", "TU", "KEUANGAN", "GURU", "SISWA", "ORTU"] },
 
+  { id: "yayasan", label: "Master Yayasan", desc: "Data yayasan pembina", icon: Landmark, group: "Master Data", roles: ["SUPER_ADMIN"] },
+  { id: "jenjang", label: "Master Jenjang", desc: "SD/MI, SMP/MTs, SMA/MA", icon: Layers, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
   { id: "sekolah", label: "Data Sekolah", desc: "Identitas & logo", icon: Building2, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
   { id: "pegawai", label: "Data Pegawai", desc: "Guru & staf", icon: Users, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
   { id: "siswa", label: "Data Siswa", desc: "Master siswa", icon: GraduationCap, group: "Master Data", roles: ["SUPER_ADMIN", "TU"] },
@@ -93,6 +97,8 @@ const allNav: NavItem[] = [
 const titleMap: Record<Tab, { title: string; subtitle: string }> = {
   dashboard: { title: "Dashboard", subtitle: "Ringkasan data sekolah" },
   sekolah: { title: "Data Sekolah", subtitle: "Identitas & logo sekolah" },
+  yayasan: { title: "Master Yayasan", subtitle: "Kelola data yayasan pembina sekolah" },
+  jenjang: { title: "Master Jenjang", subtitle: "Pilihan jenjang: SD/MI, SMP/MTs, SMA/MA/SMK" },
   pegawai: { title: "Data Pegawai", subtitle: "Guru & staf beserta struktur organisasi" },
   siswa: { title: "Data Siswa", subtitle: "Master data siswa" },
   ortu: { title: "Data Orang Tua/Wali", subtitle: "Master data orang tua & relasi ke siswa" },
@@ -307,6 +313,8 @@ export default function Home() {
           <div className="flex-1 p-4 lg:p-8 max-w-7xl w-full mx-auto">
             {active === "dashboard" && <Dashboard onNavigate={handleNavigate} />}
             {active === "sekolah" && <SekolahSection />}
+            {active === "yayasan" && <YayasanSection />}
+            {active === "jenjang" && <JenjangSection />}
             {active === "pegawai" && <PegawaiSection />}
             {active === "siswa" && <SiswaSection />}
             {active === "ortu" && <OrtuSection />}

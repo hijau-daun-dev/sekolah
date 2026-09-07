@@ -16,25 +16,32 @@ export async function GET(req: NextRequest) {
       if (session.user.role === "SUPER_ADMIN") {
         const list = await db.sekolah.findMany({
           orderBy: { nama: "asc" },
-          select: { id: true, nama: true, jenjang: true, yayasan: true, alamat: true, logoUrl: true, kepalaSekolah: true, statusAktif: true },
+          select: { id: true, nama: true, jenjang: true, jenjangId: true, yayasan: true, yayasanId: true, alamat: true, logoUrl: true, kepalaSekolah: true, statusAktif: true, jenjangRef: { select: { id: true, kode: true, nama: true } }, yayasanRef: { select: { id: true, nama: true, logoUrl: true } } },
         });
         return NextResponse.json(list);
       }
       const sid = Number(session.user.sekolahId);
       if (!sid) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
-      const own = await db.sekolah.findUnique({ where: { id: sid }, select: { id: true, nama: true, jenjang: true, yayasan: true, alamat: true, logoUrl: true, kepalaSekolah: true, statusAktif: true } });
+      const own = await db.sekolah.findUnique({ where: { id: sid }, select: { id: true, nama: true, jenjang: true, jenjangId: true, yayasan: true, yayasanId: true, alamat: true, logoUrl: true, kepalaSekolah: true, statusAktif: true, jenjangRef: { select: { id: true, kode: true, nama: true } }, yayasanRef: { select: { id: true, nama: true, logoUrl: true } } } });
       return NextResponse.json(own ? [own] : []);
     }
 
     // SUPER_ADMIN: array (or single if ?sekolahId=X provided)
     if (session.user.role === "SUPER_ADMIN") {
       if (sekolahIdParam) {
-        const s = await db.sekolah.findUnique({ where: { id: Number(sekolahIdParam) } });
+        const s = await db.sekolah.findUnique({
+          where: { id: Number(sekolahIdParam) },
+          include: { jenjangRef: true, yayasanRef: true },
+        });
         return NextResponse.json(s);
       }
       const list = await db.sekolah.findMany({
         orderBy: { nama: "asc" },
-        select: { id: true, nama: true, jenjang: true, yayasan: true, alamat: true, logoUrl: true, statusAktif: true, kepalaSekolah: true, nipKepala: true },
+        include: {
+          jenjangRef: { select: { id: true, kode: true, nama: true } },
+          yayasanRef: { select: { id: true, nama: true, logoUrl: true } },
+          _count: { select: { siswas: true, pegawais: true, users: true } },
+        },
       });
       return NextResponse.json(list);
     }
@@ -42,7 +49,13 @@ export async function GET(req: NextRequest) {
     // Non-super → their own sekolah as single object (backward compat with sekolah-section)
     const sid = Number(session.user.sekolahId);
     if (!sid) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
-    const sekolah = await db.sekolah.findUnique({ where: { id: sid } });
+    const sekolah = await db.sekolah.findUnique({
+      where: { id: sid },
+      include: {
+        jenjangRef: { select: { id: true, kode: true, nama: true } },
+        yayasanRef: { select: { id: true, nama: true, logoUrl: true, alamat: true, telepon: true, email: true } },
+      },
+    });
     return NextResponse.json(sekolah);
   } catch (e) {
     console.error("GET sekolah error:", e);
@@ -57,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const {
-      id, nama, npsn, jenjang, yayasan, alamat, logoUrl, telepon, email, website,
+      id, nama, npsn, jenjang, jenjangId, yayasan, yayasanId, alamat, logoUrl, telepon, email, website,
       kepalaSekolah, nipKepala, description, statusAktif,
     } = body;
 
@@ -69,7 +82,9 @@ export async function POST(req: NextRequest) {
       nama: String(nama).trim(),
       npsn: npsn || null,
       jenjang: jenjang || "SD",
+      jenjangId: jenjangId ? Number(jenjangId) : null,
       yayasan: yayasan || null,
+      yayasanId: yayasanId ? Number(yayasanId) : null,
       alamat: alamat || null,
       logoUrl: logoUrl || null,
       telepon: telepon || null,
@@ -92,9 +107,9 @@ export async function POST(req: NextRequest) {
     if (targetId) {
       const existing = await db.sekolah.findUnique({ where: { id: targetId } });
       if (!existing) return NextResponse.json({ error: "Sekolah tidak ditemukan" }, { status: 404 });
-      sekolah = await db.sekolah.update({ where: { id: targetId }, data });
+      sekolah = await db.sekolah.update({ where: { id: targetId }, data, include: { jenjangRef: true, yayasanRef: true } });
     } else {
-      sekolah = await db.sekolah.create({ data });
+      sekolah = await db.sekolah.create({ data, include: { jenjangRef: true, yayasanRef: true } });
     }
 
     return NextResponse.json(sekolah);

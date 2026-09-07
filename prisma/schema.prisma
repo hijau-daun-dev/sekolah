@@ -22,12 +22,48 @@ model Role {
   createdAt   DateTime @default(now())
 }
 
+// ============ MASTER DATA YAYASAN & JENJANG ============
+
+model Yayasan {
+  id          Int      @id @default(autoincrement())
+  nama        String
+  npsnYayasan String?  // NPSN Yayasan (jika ada)
+  alamat      String?
+  telepon     String?
+  email       String?
+  website     String?
+  logoUrl     String?  // Logo yayasan (upload)
+  ketuaYayasan String? // Nama ketua yayasan
+  description String?
+  statusAktif Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sekolahs    Sekolah[]
+}
+
+model Jenjang {
+  id          Int      @id @default(autoincrement())
+  kode        String   @unique // SD, MI, SMP, MTs, MA
+  nama        String   // "Sekolah Dasar", "Madrasah Ibtidaiyah", dst
+  urutan      Int      @default(0) // untuk ordering: SD/MI=1, SMP/MTs=2, MA=3
+  keterangan  String?
+  statusAktif Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  sekolahs    Sekolah[]
+}
+
 model Sekolah {
   id            Int      @id @default(autoincrement())
   nama          String
   npsn          String?
-  jenjang       String   @default("SD") // SD, SMP, MI, MTs, MA, SD-SMP, MI-MTs
-  yayasan       String?
+  jenjang       String   @default("SD") // SD, SMP, MI, MTs, MA, SD-SMP, MI-MTs (legacy field, kept for backward compat)
+  jenjangId     Int?     // FK to Jenjang (preferred)
+  jenjangRef    Jenjang? @relation(fields: [jenjangId], references: [id])
+  yayasan       String?  // Legacy: nama yayasan (kept for backward compat)
+  yayasanId     Int?     // FK to Yayasan (preferred)
+  yayasanRef    Yayasan? @relation(fields: [yayasanId], references: [id])
   alamat        String?
   logoUrl       String?
   telepon       String?
