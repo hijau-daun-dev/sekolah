@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
     const siswaId = url.searchParams.get("siswaId");
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
+    const qSekolahId = url.searchParams.get("sekolahId");
+    const effectiveSekolahId = sekolahId ?? (qSekolahId ? Number(qSekolahId) : undefined);
 
     const where: Record<string, unknown> = {};
     if (from || to) {
@@ -36,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     // Build tagihanSiswa filter
     const tagihanFilter: Record<string, unknown> = {};
-    if (sekolahId) tagihanFilter.siswa = { sekolahId };
+    if (effectiveSekolahId) tagihanFilter.siswa = { sekolahId: effectiveSekolahId };
     if (siswaId) tagihanFilter.siswaId = Number(siswaId);
 
     // Ortu/Siswa data isolation

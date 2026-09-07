@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardCheck, Loader2, Save, SearchX } from "lucide-react";
+import { ClipboardCheck, Loader2, Save, SearchX, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { toDateISO } from "./_format";
+import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
 
 interface KelasOpt { id: number; nama: string; tingkat?: { nama: string } | null }
 interface SiswaOpt {
@@ -34,6 +35,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export function AbsensiSiswaSection() {
+  const sekolahFilter = useSekolahFilter();
   const [kelasOpts, setKelasOpts] = useState<KelasOpt[]>([]);
   const [kelasId, setKelasId] = useState<string>("");
   const [tanggal, setTanggal] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -42,12 +44,16 @@ export function AbsensiSiswaSection() {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
+  // Reload kelas options when sekolah changes
   useEffect(() => {
-    fetch("/api/kelas")
+    if (!sekolahFilter.userRole) return;
+    fetch(`/api/kelas${sekolahFilter.sekolahQuery}`)
       .then((r) => r.json())
       .then((d: KelasOpt[]) => { if (Array.isArray(d)) setKelasOpts(d); })
       .catch(() => {});
-  }, []);
+    // Reset kelasId when sekolah changes
+    setKelasId("");
+  }, [sekolahFilter.userRole, sekolahFilter.sekolahQuery]);
 
   const load = useCallback(async () => {
     if (!kelasId || !tanggal) return;
@@ -57,7 +63,7 @@ export function AbsensiSiswaSection() {
       // 1. Load all siswa of this kelas via kelas-siswa endpoint
       const [siswaRes, absensiRes] = await Promise.all([
         fetch(`/api/kelas-siswa?kelasId=${kelasId}`).then((r) => r.json()),
-        fetch(`/api/absensi-siswa?kelasId=${kelasId}&tanggal=${tanggal}`).then((r) => r.json()),
+        fetch(`/api/absensi-siswa?kelasId=${kelasId}&tanggal=${tanggal}${sekolahFilter.effectiveSekolahId ? `&sekolahId=${sekolahFilter.effectiveSekolahId}` : ""}`).then((r) => r.json()),
       ]);
       const kelasSiswas: Array<{ siswaId: number; siswa?: SiswaOpt } | SiswaOpt & { siswaId?: number }> = Array.isArray(siswaRes) ? siswaRes : [];
       const absensi: Array<{ siswaId: number; status: string; keterangan?: string | null; id: number }> = Array.isArray(absensiRes) ? absensiRes : [];
@@ -137,25 +143,49 @@ export function AbsensiSiswaSection() {
           <p className="text-xs text-slate-500">Pilih kelas & tanggal, isi kehadiran, lalu simpan</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex-1">
-            <Label className="text-xs">Kelas</Label>
-            <Select value={kelasId} onValueChange={setKelasId}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
-              <SelectContent>
-                {kelasOpts.map((k) => <SelectItem key={k.id} value={String(k.id)}>{k.tingkat?.nama} {k.nama}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        {/* Filter Bar */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <SearchX className="h-3.5 w-3.5" />
+            <span className="font-medium">Filter Absensi:</span>
           </div>
-          <div className="flex-1">
-            <Label className="text-xs">Tanggal</Label>
-            <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
-          </div>
-          <div className="flex items-end">
+          <div className="flex flex-col sm:flex-row gap-2 flex-wrap items-end">
+            {sekolahFilter.isSuperAdmin && (
+              <div className="flex-1 min-w-[180px]">
+                <Label className="text-xs">Sekolah</Label>
+                <SekolahFilterDropdown
+                  isSuperAdmin={sekolahFilter.isSuperAdmin}
+                  filterSekolah={sekolahFilter.filterSekolah}
+                  setFilterSekolah={sekolahFilter.setFilterSekolah}
+                  sekolahOpts={sekolahFilter.sekolahOpts}
+                  className="w-full"
+                />
+              </div>
+            )}
+            <div className="flex-1 min-w-[180px]">
+              <Label className="text-xs">Kelas</Label>
+              <Select value={kelasId} onValueChange={setKelasId}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+                <SelectContent>
+                  {kelasOpts.map((k) => <SelectItem key={k.id} value={String(k.id)}>{k.tingkat?.nama} {k.nama}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <Label className="text-xs">Tanggal</Label>
+              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+            </div>
             <Button size="sm" onClick={handleSave} disabled={saving || rows.length === 0} className="bg-slate-700 hover:bg-slate-800">
               {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Simpan Semua
             </Button>
           </div>
+          {sekolahFilter.isSuperAdmin && sekolahFilter.filterSekolah !== "all" && (
+            <div className="text-xs text-slate-500">
+              Menampilkan absensi untuk sekolah: <span className="font-semibold text-slate-700">
+                {sekolahFilter.sekolahOpts.find((s) => String(s.id) === sekolahFilter.filterSekolah)?.nama || sekolahFilter.filterSekolah}
+              </span>
+            </div>
+          )}
         </div>
 
         {rows.length > 0 && (

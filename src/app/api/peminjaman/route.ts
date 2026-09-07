@@ -11,10 +11,12 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
+    const qSekolahId = url.searchParams.get("sekolahId");
+    const effectiveSekolahId = sekolahId ?? (qSekolahId ? Number(qSekolahId) : undefined);
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
-    if (sekolahId) where.barang = { sekolahId };
+    if (effectiveSekolahId) where.barang = { sekolahId: effectiveSekolahId };
 
     const data = await db.peminjamanBarang.findMany({
       where,

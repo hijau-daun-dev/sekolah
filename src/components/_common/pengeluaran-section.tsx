@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Wallet, Plus, Pencil, Trash2, Loader2, SearchX, ImageIcon } from "lucide-react";
+import { Wallet, Plus, Pencil, Trash2, Loader2, SearchX, ImageIcon, X } from "lucide-react";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ImageUpload } from "./image-upload";
 import { fmtIDR, fmtDateDisplay, toDateISO } from "./_format";
+import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
 
 interface PosAnggaranOpt { id: number; nama: string; kode?: string | null; jenis: string }
 interface Pengeluaran {
@@ -35,6 +36,7 @@ interface Pengeluaran {
 }
 
 export function PengeluaranSection() {
+  const sekolahFilter = useSekolahFilter();
   const [list, setList] = useState<Pengeluaran[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -47,19 +49,23 @@ export function PengeluaranSection() {
   const [delTarget, setDelTarget] = useState<Pengeluaran | null>(null);
   const { toast } = useToast();
 
+  // Reload pos anggaran when sekolah changes
   useEffect(() => {
-    fetch("/api/pos-anggaran")
+    if (!sekolahFilter.userRole) return;
+    fetch(`/api/pos-anggaran${sekolahFilter.sekolahQuery}`)
       .then((r) => r.json())
       .then((d: PosAnggaranOpt[]) => {
         if (Array.isArray(d)) setPosOpts(d.filter((x) => x.jenis === "Pengeluaran"));
       })
       .catch(() => {});
-  }, []);
+  }, [sekolahFilter.userRole, sekolahFilter.sekolahQuery]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/pengeluaran");
+      const params = new URLSearchParams();
+      if (sekolahFilter.effectiveSekolahId) params.set("sekolahId", String(sekolahFilter.effectiveSekolahId));
+      const r = await fetch(`/api/pengeluaran?${params.toString()}`);
       const d = await r.json();
       if (Array.isArray(d)) setList(d);
     } catch {
@@ -67,7 +73,7 @@ export function PengeluaranSection() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [sekolahFilter.effectiveSekolahId, toast]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -204,20 +210,54 @@ export function PengeluaranSection() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-            </svg>
-            <Input placeholder="Cari keterangan / pos / petugas..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+        {/* Filter Bar */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <SearchX className="h-3.5 w-3.5" />
+            <span className="font-medium">Filter Pengeluaran:</span>
           </div>
-          <Select value={filterPos} onValueChange={setFilterPos}>
-            <SelectTrigger className="w-full sm:w-56 h-9"><SelectValue placeholder="Pos Anggaran" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Pos</SelectItem>
-              {posOpts.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+            <SekolahFilterDropdown
+              isSuperAdmin={sekolahFilter.isSuperAdmin}
+              filterSekolah={sekolahFilter.filterSekolah}
+              setFilterSekolah={sekolahFilter.setFilterSekolah}
+              sekolahOpts={sekolahFilter.sekolahOpts}
+            />
+            <Select value={filterPos} onValueChange={setFilterPos}>
+              <SelectTrigger className="w-full sm:w-56 h-9"><SelectValue placeholder="Pos Anggaran" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Pos</SelectItem>
+                {posOpts.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.nama}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="relative flex-1 min-w-[200px]">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+              </svg>
+              <Input placeholder="Cari keterangan / pos / petugas..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+            </div>
+            {(sekolahFilter.filterSekolah !== "all" || filterPos !== "all" || search) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  sekolahFilter.resetSekolahFilter();
+                  setFilterPos("all");
+                  setSearch("");
+                }}
+                className="text-xs h-9"
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Reset
+              </Button>
+            )}
+          </div>
+          {sekolahFilter.isSuperAdmin && sekolahFilter.filterSekolah !== "all" && (
+            <div className="text-xs text-slate-500">
+              Menampilkan pengeluaran untuk sekolah: <span className="font-semibold text-slate-700">
+                {sekolahFilter.sekolahOpts.find((s) => String(s.id) === sekolahFilter.filterSekolah)?.nama || sekolahFilter.filterSekolah}
+              </span>
+            </div>
+          )}
         </div>
 
         {loading ? (

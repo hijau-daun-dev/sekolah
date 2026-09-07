@@ -20,9 +20,11 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const kelasId = url.searchParams.get("kelasId");
     const tanggal = url.searchParams.get("tanggal");
+    const qSekolahId = url.searchParams.get("sekolahId");
+    const effectiveSekolahId = sekolahId ?? (qSekolahId ? Number(qSekolahId) : undefined);
 
     const siswaFilter: Record<string, unknown> = {};
-    if (sekolahId) siswaFilter.sekolahId = sekolahId;
+    if (effectiveSekolahId) siswaFilter.sekolahId = effectiveSekolahId;
     if (allowedSiswaIds && allowedSiswaIds.length >= 0) {
       if (allowedSiswaIds.length === 0) {
         return NextResponse.json([]);

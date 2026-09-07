@@ -15,12 +15,14 @@ export async function GET(req: NextRequest) {
     const siswaIdParam = url.searchParams.get("siswaId");
     const statusLunas = url.searchParams.get("statusLunas");
     const bulanTagihan = url.searchParams.get("bulanTagihan");
+    const qSekolahId = url.searchParams.get("sekolahId");
+    const effectiveSekolahId = sekolahId ?? (qSekolahId ? Number(qSekolahId) : undefined);
 
     const where: Record<string, unknown> = {};
     if (statusLunas === "true") where.statusLunas = true;
     if (statusLunas === "false") where.statusLunas = false;
     if (bulanTagihan) where.bulanTagihan = bulanTagihan;
-    if (sekolahId) where.siswa = { sekolahId };
+    if (effectiveSekolahId) where.siswa = { sekolahId: effectiveSekolahId };
 
     // Ortu/Siswa data isolation
     const allowedSiswaIds = await getAllowedSiswaIds();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { PackageOpen, Plus, Undo2, Loader2, SearchX } from "lucide-react";
+import { PackageOpen, Plus, Undo2, Loader2, SearchX, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { fmtDateDisplay, toDateISO } from "./_format";
+import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
 
 interface BarangOpt {
   id: number; nama: string; kode?: string | null; status: string;
@@ -39,6 +40,7 @@ interface Peminjaman {
 }
 
 export function PeminjamanSection() {
+  const sekolahFilter = useSekolahFilter();
   const [list, setList] = useState<Peminjaman[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -61,6 +63,7 @@ export function PeminjamanSection() {
     try {
       const params = new URLSearchParams();
       if (filterStatus !== "all") params.set("status", filterStatus);
+      if (sekolahFilter.effectiveSekolahId) params.set("sekolahId", String(sekolahFilter.effectiveSekolahId));
       const r = await fetch(`/api/peminjaman?${params.toString()}`);
       const d = await r.json();
       if (Array.isArray(d)) setList(d);
@@ -69,19 +72,21 @@ export function PeminjamanSection() {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, toast]);
+  }, [filterStatus, sekolahFilter.effectiveSekolahId, toast]);
 
   useEffect(() => { load(); }, [load]);
 
   const loadBarang = useCallback(async () => {
     try {
-      const r = await fetch("/api/barang");
+      const params = new URLSearchParams();
+      if (sekolahFilter.effectiveSekolahId) params.set("sekolahId", String(sekolahFilter.effectiveSekolahId));
+      const r = await fetch(`/api/barang?${params.toString()}`);
       const d = await r.json();
       if (Array.isArray(d)) setBarangOpts(d.filter((b: BarangOpt) => b.status === "Tersedia"));
     } catch {
       toast({ title: "Gagal memuat barang", variant: "destructive" });
     }
-  }, [toast]);
+  }, [sekolahFilter.effectiveSekolahId, toast]);
 
   const handleOpen = () => {
     setSelectedBarangId("");
@@ -182,14 +187,49 @@ export function PeminjamanSection() {
           </div>
         </div>
 
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-full sm:w-56 h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Status</SelectItem>
-            <SelectItem value="Dipinjam">Dipinjam</SelectItem>
-            <SelectItem value="Dikembalikan">Dikembalikan</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Filter Bar */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <SearchX className="h-3.5 w-3.5" />
+            <span className="font-medium">Filter Peminjaman:</span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+            <SekolahFilterDropdown
+              isSuperAdmin={sekolahFilter.isSuperAdmin}
+              filterSekolah={sekolahFilter.filterSekolah}
+              setFilterSekolah={sekolahFilter.setFilterSekolah}
+              sekolahOpts={sekolahFilter.sekolahOpts}
+            />
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full sm:w-56 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="Dipinjam">Dipinjam</SelectItem>
+                <SelectItem value="Dikembalikan">Dikembalikan</SelectItem>
+              </SelectContent>
+            </Select>
+            {(sekolahFilter.filterSekolah !== "all" || filterStatus !== "all") && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  sekolahFilter.resetSekolahFilter();
+                  setFilterStatus("all");
+                }}
+                className="text-xs h-9"
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Reset
+              </Button>
+            )}
+          </div>
+          {sekolahFilter.isSuperAdmin && sekolahFilter.filterSekolah !== "all" && (
+            <div className="text-xs text-slate-500">
+              Menampilkan peminjaman untuk sekolah: <span className="font-semibold text-slate-700">
+                {sekolahFilter.sekolahOpts.find((s) => String(s.id) === sekolahFilter.filterSekolah)?.nama || sekolahFilter.filterSekolah}
+              </span>
+            </div>
+          )}
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-500" /></div>

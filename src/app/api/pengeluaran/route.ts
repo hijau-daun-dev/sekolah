@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/session";
 import { pengeluaranSchema } from "@/lib/schemas";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,7 +17,11 @@ export async function GET() {
     const sekolahId = session.user.role === "SUPER_ADMIN" ? undefined : Number(session.user.sekolahId);
     if (session.user.role !== "SUPER_ADMIN" && !sekolahId) return NextResponse.json({ error: "No sekolah" }, { status: 403 });
 
-    const where = sekolahId ? { pegawai: { sekolahId } } : {};
+    const url = new URL(req.url);
+    const qSekolahId = url.searchParams.get("sekolahId");
+    const effectiveSekolahId = sekolahId ?? (qSekolahId ? Number(qSekolahId) : undefined);
+
+    const where = effectiveSekolahId ? { pegawai: { sekolahId: effectiveSekolahId } } : {};
     const data = await db.pengeluaran.findMany({
       where,
       include: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileBarChart, Plus, Printer, Loader2, SearchX } from "lucide-react";
+import { FileBarChart, Plus, Printer, Loader2, SearchX, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { fmtIDR, fmtDateDisplay } from "./_format";
+import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
 
 interface Pembayaran {
   id: number;
@@ -46,6 +47,7 @@ interface TagihanOpt {
 const METODE_LIST = ["Tunai", "Transfer", "Debit", "QRIS"];
 
 export function PembayaranSection() {
+  const sekolahFilter = useSekolahFilter();
   const [list, setList] = useState<Pembayaran[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -62,7 +64,9 @@ export function PembayaranSection() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/pembayaran");
+      const params = new URLSearchParams();
+      if (sekolahFilter.effectiveSekolahId) params.set("sekolahId", String(sekolahFilter.effectiveSekolahId));
+      const r = await fetch(`/api/pembayaran?${params.toString()}`);
       const d = await r.json();
       if (Array.isArray(d)) setList(d);
     } catch {
@@ -70,14 +74,17 @@ export function PembayaranSection() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [sekolahFilter.effectiveSekolahId, toast]);
 
   useEffect(() => { load(); }, [load]);
 
   const loadUnpaid = useCallback(async () => {
     setLoadingOpts(true);
     try {
-      const r = await fetch("/api/tagihan?statusLunas=false");
+      const params = new URLSearchParams();
+      params.set("statusLunas", "false");
+      if (sekolahFilter.effectiveSekolahId) params.set("sekolahId", String(sekolahFilter.effectiveSekolahId));
+      const r = await fetch(`/api/tagihan?${params.toString()}`);
       const d = await r.json();
       if (Array.isArray(d)) setTagihanOpts(d);
     } catch {
@@ -85,7 +92,7 @@ export function PembayaranSection() {
     } finally {
       setLoadingOpts(false);
     }
-  }, [toast]);
+  }, [sekolahFilter.effectiveSekolahId, toast]);
 
   const handleOpenDialog = () => {
     setSelectedTagihanId("");
@@ -187,11 +194,46 @@ export function PembayaranSection() {
           </div>
         </div>
 
-        <div className="relative w-full max-w-md">
-          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-          </svg>
-          <Input placeholder="Cari kode kwitansi / siswa..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+        {/* Filter Bar */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <SearchX className="h-3.5 w-3.5" />
+            <span className="font-medium">Filter Pembayaran:</span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+            <SekolahFilterDropdown
+              isSuperAdmin={sekolahFilter.isSuperAdmin}
+              filterSekolah={sekolahFilter.filterSekolah}
+              setFilterSekolah={sekolahFilter.setFilterSekolah}
+              sekolahOpts={sekolahFilter.sekolahOpts}
+            />
+            <div className="relative flex-1 min-w-[200px]">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+              </svg>
+              <Input placeholder="Cari kode kwitansi / siswa..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+            </div>
+            {(sekolahFilter.filterSekolah !== "all" || search) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  sekolahFilter.resetSekolahFilter();
+                  setSearch("");
+                }}
+                className="text-xs h-9"
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Reset
+              </Button>
+            )}
+          </div>
+          {sekolahFilter.isSuperAdmin && sekolahFilter.filterSekolah !== "all" && (
+            <div className="text-xs text-slate-500">
+              Menampilkan pembayaran untuk sekolah: <span className="font-semibold text-slate-700">
+                {sekolahFilter.sekolahOpts.find((s) => String(s.id) === sekolahFilter.filterSekolah)?.nama || sekolahFilter.filterSekolah}
+              </span>
+            </div>
+          )}
         </div>
 
         {loading ? (

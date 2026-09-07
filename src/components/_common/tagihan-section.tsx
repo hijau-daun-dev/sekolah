@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { fmtIDR, fmtDateDisplay } from "./_format";
+import { useSekolahFilter, SekolahFilterDropdown } from "@/lib/use-sekolah-filter";
 
 interface TahunOpt { id: number; nama: string; statusAktif: boolean }
 interface JenisOpt { id: number; nama: string }
@@ -40,10 +41,12 @@ const BULAN_LIST = [
 ];
 
 export function TagihanSection() {
+  const sekolahFilter = useSekolahFilter();
   const [list, setList] = useState<Tagihan[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterBulan, setFilterBulan] = useState<string>("all");
 
   const [genOpen, setGenOpen] = useState(false);
   const [tahunOpts, setTahunOpts] = useState<TahunOpt[]>([]);
@@ -54,10 +57,12 @@ export function TagihanSection() {
   const [generating, setGenerating] = useState(false);
   const { toast } = useToast();
 
+  // Reload TA + Jenis Pembayaran when sekolah changes
   useEffect(() => {
+    if (!sekolahFilter.userRole) return;
     Promise.all([
-      fetch("/api/tahun-ajaran").then((r) => r.json()),
-      fetch("/api/jenis-pembayaran").then((r) => r.json()),
+      fetch(`/api/tahun-ajaran${sekolahFilter.sekolahQuery}`).then((r) => r.json()),
+      fetch(`/api/jenis-pembayaran${sekolahFilter.sekolahQuery}`).then((r) => r.json()),
     ]).then(([t, j]: [TahunOpt[], JenisOpt[]]) => {
       if (Array.isArray(t)) {
         setTahunOpts(t);
@@ -66,12 +71,17 @@ export function TagihanSection() {
       }
       if (Array.isArray(j)) setJenisOpts(j);
     }).catch(() => {});
-  }, []);
+  }, [sekolahFilter.userRole, sekolahFilter.sekolahQuery]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/tagihan");
+      const params = new URLSearchParams();
+      if (sekolahFilter.effectiveSekolahId) params.set("sekolahId", String(sekolahFilter.effectiveSekolahId));
+      if (filterStatus === "lunas") params.set("statusLunas", "true");
+      if (filterStatus === "belum") params.set("statusLunas", "false");
+      if (filterBulan !== "all") params.set("bulanTagihan", filterBulan);
+      const r = await fetch(`/api/tagihan?${params.toString()}`);
       const d = await r.json();
       if (Array.isArray(d)) setList(d);
     } catch {
@@ -79,7 +89,7 @@ export function TagihanSection() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [sekolahFilter.effectiveSekolahId, filterStatus, filterBulan, toast]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -166,21 +176,63 @@ export function TagihanSection() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-            </svg>
-            <Input placeholder="Cari siswa / NIS / jenis..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+        {/* Filter Bar */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <SearchX className="h-3.5 w-3.5" />
+            <span className="font-medium">Filter Tagihan:</span>
           </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full sm:w-40 h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Status</SelectItem>
-              <SelectItem value="lunas">Lunas</SelectItem>
-              <SelectItem value="belum">Belum Lunas</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+            <SekolahFilterDropdown
+              isSuperAdmin={sekolahFilter.isSuperAdmin}
+              filterSekolah={sekolahFilter.filterSekolah}
+              setFilterSekolah={sekolahFilter.setFilterSekolah}
+              sekolahOpts={sekolahFilter.sekolahOpts}
+            />
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full sm:w-40 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="lunas">Lunas</SelectItem>
+                <SelectItem value="belum">Belum Lunas</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterBulan} onValueChange={setFilterBulan}>
+              <SelectTrigger className="w-full sm:w-44 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Bulan</SelectItem>
+                {BULAN_LIST.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="relative flex-1 min-w-[200px]">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+              </svg>
+              <Input placeholder="Cari siswa / NIS / jenis..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+            </div>
+            {(sekolahFilter.filterSekolah !== "all" || filterStatus !== "all" || filterBulan !== "all" || search) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  sekolahFilter.resetSekolahFilter();
+                  setFilterStatus("all");
+                  setFilterBulan("all");
+                  setSearch("");
+                }}
+                className="text-xs h-9"
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Reset
+              </Button>
+            )}
+          </div>
+          {sekolahFilter.isSuperAdmin && sekolahFilter.filterSekolah !== "all" && (
+            <div className="text-xs text-slate-500">
+              Menampilkan tagihan untuk sekolah: <span className="font-semibold text-slate-700">
+                {sekolahFilter.sekolahOpts.find((s) => String(s.id) === sekolahFilter.filterSekolah)?.nama || sekolahFilter.filterSekolah}
+              </span>
+            </div>
+          )}
         </div>
 
         {loading ? (
