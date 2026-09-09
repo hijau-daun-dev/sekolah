@@ -1,5 +1,5 @@
 -- Database dump for SIMSEKOLAH
--- Generated: 2026-09-06T18:00:00.287Z
+-- Generated: 2026-09-09T04:28:14.387Z
 -- Source: db/custom.db (SQLite)
 -- Tables: 37
 
@@ -7537,7 +7537,7 @@ INSERT INTO "TingkatMapel" ("id", "tingkatId", "mapelId", "jpPerMinggu", "status
 
 -- Table: User (7 rows)
 DELETE FROM "User";
-INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (1, 'admin@alhidayah.sch.id', '$2b$10$9LOZlNGEvaPmSBjWMSd/o.7qLvfaRqwAuwarOfauklRFW8/1ZjbKG', 'Super Admin Yayasan', 6, 1, NULL, NULL, NULL, 1, 1788709974770, 1788698692221, 1788709974772);
+INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (1, 'admin@alhidayah.sch.id', '$2b$10$9LOZlNGEvaPmSBjWMSd/o.7qLvfaRqwAuwarOfauklRFW8/1ZjbKG', 'Super Admin Yayasan', 6, 1, NULL, NULL, NULL, 1, 1788928067457, 1788698692221, 1788928067460);
 INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (2, 'tu@mialhidayah.sch.id', '$2b$10$vn6Al1Qmxy.P7371/iifBOa6fHTz8NPGQHOFjevfNO3gzUlNIninC', 'Admin TU MI Al-Hidayah', 1, 1, NULL, NULL, NULL, 1, NULL, 1788698692308, 1788698692308);
 INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (3, 'keuangan@mialhidayah.sch.id', '$2b$10$M0dhbyR.uVjRHpSzYbJpHOObiE3a8Xv/JfYxHqJ4e7F59LdevEuou', 'Admin Keuangan MI Al-Hidayah', 2, 1, NULL, NULL, NULL, 1, NULL, 1788698692309, 1788698692309);
 INSERT INTO "User" ("id", "email", "password", "name", "roleId", "sekolahId", "pegawaiId", "ortuId", "siswaId", "isActive", "lastLogin", "createdAt", "updatedAt") VALUES (4, 'guru@mialhidayah.sch.id', '$2b$10$Npn4m15pX6SNrKWJV13niOWBnoe5fHtYfLVXMcSxwM4CT3S39L0C2', 'Ustadz Ahmad Fauzi, S.Pd.', 3, 1, 3, NULL, NULL, 1, NULL, 1788698692310, 1788698692310);
